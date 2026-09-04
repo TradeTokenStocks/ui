@@ -46,5 +46,9 @@
     "web": "expo start --web",
     "lint": "expo lint"
   },
-  "private": true
+  "private": true,
+  "trustedDependencies": [
+    "@shopify/react-native-skia",
+    "unrs-resolver"
+  ]
 }

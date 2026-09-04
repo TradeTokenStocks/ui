@@ -7,6 +7,7 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DitherField } from '@/components/dither-field';
@@ -20,6 +21,7 @@ import {
   companies,
   events,
   hasUnreviewedEvents,
+  tickerByCompany,
   totals,
   type CompanyExposure,
   type LedgerRow,
@@ -191,8 +193,11 @@ function CompanyRow({ company }: { company: CompanyExposure }) {
   const changeColor =
     company.changeIsPositive === true ? palette.positive : ink.quaternary;
 
+  const ticker = tickerByCompany[company.name];
+
   return (
     <Pressable
+      onPress={() => ticker && router.push(`/company/${ticker}`)}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: fill.press }]}
       accessibilityRole="button"
       accessibilityLabel={`${company.name}, ${company.value}, ${company.change}. ${company.onchainPct}% onchain and allocatable, ${company.observedPct}% observed at a brokerage.`}>
