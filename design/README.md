@@ -34,3 +34,15 @@ Turn 7 supersedes turn 4's home screen; turn 6 is nav-bar exploration resolved b
 | `5a-4` | Connections — sync status & data freshness |
 | `5a-5` | Delegated session |
 | `5a-6` | Add funds — handoff to Privy's funding sheet |
+
+## Working on one screen
+
+`design/src/v3-dark.html` holds all 17 screens in one ~120KB file. To split it
+into `design/screens/<id>.html`:
+
+```bash
+python3 design/split-screens.py
+```
+
+The output is gitignored — it is derived from the source and committing it
+would duplicate the whole document a second time.
