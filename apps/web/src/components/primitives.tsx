@@ -117,17 +117,24 @@ export function ExposureBar({
   className?: string;
 }) {
   return (
-    <div className={cn('flex h-1.5 gap-1', className)}>
-      <div
-        className="rounded-pill border border-white/20"
-        style={{ flexGrow: observedPct }}
-        title={`${observedPct}% observed at a brokerage`}
-      />
-      <div
-        className="rounded-pill bg-cobalt shadow-[0_0_10px_rgba(94,124,255,0.45)]"
-        style={{ flexGrow: onchainPct }}
-        title={`${onchainPct}% onchain and allocatable`}
-      />
+    <div
+      role="img"
+      aria-label={`${onchainPct}% onchain and allocatable, ${observedPct}% observed at a brokerage`}
+      className={cn('space-y-1.5', className)}>
+      <div className="flex h-2.5 overflow-hidden rounded-pill border border-stroke-hairline bg-fill-muted">
+        <div
+          className="bg-gradient-to-r from-cobalt to-cobalt-deep shadow-[0_0_12px_rgba(94,124,255,0.4)]"
+          style={{ width: `${onchainPct}%` }}
+        />
+        <div
+          className="border-l border-bg/60 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.09)_0,rgba(255,255,255,0.09)_1px,transparent_1px,transparent_4px)]"
+          style={{ width: `${observedPct}%` }}
+        />
+      </div>
+      <div aria-hidden className="flex items-center justify-between gap-3">
+        <Num className="text-[10px] font-medium text-cobalt-text">Wallet {onchainPct}%</Num>
+        <Num className="text-[10px] text-ink-faint">Brokerage {observedPct}%</Num>
+      </div>
     </div>
   );
 }

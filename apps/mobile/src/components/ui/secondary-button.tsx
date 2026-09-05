@@ -1,7 +1,6 @@
-import { useState } from 'react';
-import { View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
-import { Button, Host, Text } from '@expo/ui';
+import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
+import { Body } from '@/components/ui/text';
 import { fill, ink, palette, radius, stroke } from '@/theme/tokens';
 
 type Props = {
@@ -12,53 +11,56 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-/**
- * Native platform button for compact and secondary actions.
- *
- * Renders its label through `@expo/ui`'s own `Text` (via `children`) instead
- * of the plain `label` prop: the native `label` string has no wrap control at
- * all on either platform, so a label wider than the measured button — e.g.
- * "$10,000" in a row of four equally-flexed buttons — wraps mid-token instead
- * of shrinking or truncating. `numberOfLines={1}` on the child `Text` clips it
- * with an ellipsis instead.
- */
-export function SecondaryButton({ label, onPress, accent = false, disabled, style }: Props) {
-  const [width, setWidth] = useState<number>();
-
-  const handleLayout = (event: LayoutChangeEvent) => {
-    const nextWidth = Math.round(event.nativeEvent.layout.width);
-    setWidth((current) => (current === nextWidth ? current : nextWidth));
-  };
-
+/** Compact action with explicit selected/accent and quiet secondary states. */
+export function SecondaryButton({
+  label,
+  onPress,
+  accent = false,
+  disabled = false,
+  style,
+}: Props) {
   return (
-    <View
-      style={style}
-      onLayout={handleLayout}
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled }}>
-      <Host
-        matchContents={{ vertical: true }}
-        colorScheme="dark"
-        seedColor={palette.cobalt}
-        style={{ width: '100%' }}>
-        <Button
-          onPress={onPress}
-          disabled={disabled}
-          variant={accent ? 'filled' : 'outlined'}
-          style={{ ...styles.base, ...(accent ? styles.accent : styles.secondary), width }}>
-          <Text
-            numberOfLines={1}
-            textStyle={{ color: accent ? '#fff' : ink.primary, fontSize: 13.5, fontWeight: '600' }}>
-            {label}
-          </Text>
-        </Button>
-      </Host>
-    </View>
+      accessibilityState={{ disabled, selected: accent }}
+      style={({ pressed }) => [
+        styles.base,
+        accent ? styles.accent : styles.secondary,
+        style,
+        pressed && !disabled && styles.pressed,
+        disabled && styles.disabled,
+      ]}>
+      <Body
+        numberOfLines={1}
+        size={13.5}
+        weight="semibold"
+        color={accent ? '#fff' : ink.primary}>
+        {label}
+      </Body>
+    </Pressable>
   );
 }
 
-const styles = {
-  base: { height: 42, borderRadius: radius.md },
-  accent: { backgroundColor: palette.cobalt, borderColor: 'rgba(255,255,255,0.16)' },
-  secondary: { backgroundColor: fill.muted, borderColor: stroke.raised },
-};
+const styles = StyleSheet.create({
+  base: {
+    height: 42,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 13,
+  },
+  accent: {
+    backgroundColor: palette.cobaltDeep,
+    borderColor: palette.cobalt,
+  },
+  secondary: {
+    backgroundColor: fill.muted,
+    borderColor: stroke.raised,
+  },
+  pressed: { backgroundColor: fill.active, transform: [{ scale: 0.985 }] },
+  disabled: { opacity: 0.42 },
+});

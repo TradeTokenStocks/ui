@@ -19,7 +19,10 @@ export function SelectionPicker<T extends string>({ value, onChange, options, te
       colorScheme="dark"
       seedColor={palette.cobalt}
       style={{ width: '100%' }}>
-      <Picker selectedValue={value} onValueChange={(next) => onChange(next as T)} testID={testID}>
+      <Picker
+        selectedValue={value}
+        onValueChange={(next) => onChange(next as T)}
+        {...(testID ? { testID } : {})}>
         {options.map((option) => (
           <Picker.Item key={option.value} label={option.label} value={option.value} />
         ))}

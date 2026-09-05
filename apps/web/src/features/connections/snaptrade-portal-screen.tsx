@@ -27,7 +27,8 @@ export function SnapTradePortalScreen({ mode }: { mode?: string }) {
   const [institution, setInstitution] = useState<string>('alpaca');
   const [failed, setFailed] = useState(false);
 
-  const selected = snaptradeScenarios.find((item) => item.id === scenario)!;
+  const selected = snaptradeScenarios.find((item) => item.id === scenario);
+  if (!selected) throw new Error(`Unknown SnapTrade scenario: ${scenario}`);
 
   const connect = () => {
     if (scenario === 'invalid') {

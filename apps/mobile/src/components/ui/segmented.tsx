@@ -1,8 +1,8 @@
-import { StyleSheet, View } from 'react-native';
-import NativeSegmentedControl from '@react-native-segmented-control/segmented-control';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { PulseDot } from '@/components/ui/pulse-dot';
-import { fill, font, ink, palette } from '@/theme/tokens';
+import { Body } from '@/components/ui/text';
+import { fill, ink, radius, stroke } from '@/theme/tokens';
 
 export type Segment = {
   key: string;
@@ -17,54 +17,61 @@ type Props = {
   onChange: (key: string) => void;
 };
 
-/**
- * Maintained library segmented control with stable product-facing keys.
- *
- * The native control renders in the OS system font by default and has no
- * concept of the app's badge language, so both are patched in explicitly:
- * `fontStyle`/`activeFontStyle` set it to the app's Instrument Sans (the
- * library exposes this — it just wasn't being passed), and the "needs
- * review" signal is the same amber `PulseDot` used everywhere else in the
- * app, overlaid at the badged segment's position, rather than a bullet
- * character appended to the label string.
- */
+/** Product-owned tabs with consistent sizing, colour, and accessibility. */
 export function Segmented({ segments, value, onChange }: Props) {
-  const index = Math.max(0, segments.findIndex((s) => s.key === value));
-  const badgeIndex = segments.findIndex((s) => s.badge);
-
   return (
-    <View style={styles.wrap}>
-      <NativeSegmentedControl
-        appearance="dark"
-        values={segments.map((segment) => segment.label)}
-        selectedIndex={index}
-        tintColor={palette.cobalt}
-        backgroundColor={fill.muted}
-        sliderStyle={{ backgroundColor: fill.active }}
-        fontStyle={{ fontFamily: font.sansSemi, fontSize: 12.5, color: ink.tertiary }}
-        activeFontStyle={{ fontFamily: font.sansSemi, fontSize: 12.5, color: ink.primary }}
-        onChange={(event) => {
-          const next = segments[event.nativeEvent.selectedSegmentIndex];
-          if (next) onChange(next.key);
-        }}
-        style={styles.control}
-      />
-      {badgeIndex >= 0 && (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.badge,
-            { left: `${((badgeIndex + 0.72) / segments.length) * 100}%` },
-          ]}>
-          <PulseDot size={5} />
-        </View>
-      )}
+    <View accessibilityRole="tablist" style={styles.track}>
+      {segments.map((segment) => {
+        const selected = segment.key === value;
+        return (
+          <Pressable
+            key={segment.key}
+            onPress={() => onChange(segment.key)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            style={({ pressed }) => [
+              styles.segment,
+              selected && styles.selected,
+              pressed && !selected && styles.pressed,
+            ]}>
+            <View style={styles.labelRow}>
+              <Body
+                size={12.5}
+                weight="semibold"
+                color={selected ? ink.primary : ink.tertiary}>
+                {segment.label}
+              </Body>
+              {segment.badge ? <PulseDot size={5} /> : null}
+            </View>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { width: '100%' },
-  control: { width: '100%', height: 42 },
-  badge: { position: 'absolute', top: '50%', marginTop: -2.5 },
+  track: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    padding: 4,
+    borderRadius: radius.segment,
+    borderWidth: 1,
+    borderColor: stroke.hairline,
+    backgroundColor: fill.subtle,
+  },
+  segment: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.segmentThumb,
+  },
+  selected: {
+    backgroundColor: fill.active,
+    borderWidth: 1,
+    borderColor: stroke.raised,
+  },
+  pressed: { backgroundColor: fill.press },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
 });

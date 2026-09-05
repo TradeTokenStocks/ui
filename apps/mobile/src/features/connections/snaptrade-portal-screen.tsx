@@ -25,7 +25,8 @@ export function SnapTradePortalScreen() {
   const [scenario, setScenario] = useState<ScenarioId>('self-directed');
   const [institution, setInstitution] = useState('alpaca');
   const [failed, setFailed] = useState(false);
-  const selected = SCENARIOS.find((item) => item.id === scenario)!;
+  const selected = SCENARIOS.find((item) => item.id === scenario);
+  if (!selected) throw new Error(`Unknown SnapTrade scenario: ${scenario}`);
 
   const connect = () => {
     if (scenario === 'invalid') {

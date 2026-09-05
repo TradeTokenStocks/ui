@@ -105,12 +105,12 @@ export function DitherField({
 
           // Quantise against the Bayer threshold: this is what produces the
           // stippled banding instead of a smooth gradient.
-          const threshold = BAYER[y % 4]![x % 4]!;
+          const threshold = BAYER[y % 4]?.[x % 4] ?? 0;
           const level = Math.min(
             stops.length - 1,
             Math.max(0, Math.floor(value * stops.length + threshold - 0.5)),
           );
-          const [r, g, b] = stops[level]!;
+          const [r, g, b] = stops[level] ?? [0, 0, 0];
 
           const index = (y * width + x) * 4;
           data[index] = r;

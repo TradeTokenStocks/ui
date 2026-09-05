@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",
-    "build": "next build",
+    "build": "bun run tokens:check && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "tokens": "bun run scripts/generate-tokens-css.ts"
+    "tokens": "bun run scripts/generate-tokens-css.ts",
+    "tokens:check": "bun run scripts/generate-tokens-css.ts --check"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.40.0",

@@ -167,17 +167,21 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
             entering={FadeIn.duration(150).reduceMotion(ReduceMotion.System)}>
             {segment === 'holdings' ? (
               <>
-              <View style={styles.panelHeader}>
-                <Body size={14.5} weight="semibold">
-                  By company
-                </Body>
-                <Body size={12} weight="medium" color={ink.quaternary}>
-                  {formatNumber(totals.holdingsCount)} holdings
-                </Body>
-              </View>
-              {companies.map((company) => (
-                <CompanyRow key={company.ticker} company={company} />
-              ))}
+                <View style={styles.panelHeader}>
+                  <View style={styles.panelTitleRow}>
+                    <Body size={15.5} weight="semibold" style={styles.flex}>
+                      Companies
+                    </Body>
+                    <Body size={11.5} weight="medium" color={ink.quaternary}>
+                      {formatNumber(totals.holdingsCount)} holdings
+                    </Body>
+                  </View>
+                </View>
+                <View style={styles.companyList}>
+                  {companies.map((company, index) => (
+                    <CompanyRow key={company.ticker} company={company} divided={index > 0} />
+                  ))}
+                </View>
               </>
             ) : (
               <View style={styles.ledger}>
@@ -200,7 +204,7 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
  * and inert, the cobalt portion is onchain and allocatable. Two companies can
  * show the same value and mean completely different things.
  */
-function CompanyRow({ company }: { company: CompanyExposure }) {
+function CompanyRow({ company, divided }: { company: CompanyExposure; divided: boolean }) {
   const value = formatUsd(company.valueUsd);
   const change = formatPercent(company.changePct);
   const changeColor = isGain(company.changePct) ? palette.positive : ink.quaternary;
@@ -208,32 +212,56 @@ function CompanyRow({ company }: { company: CompanyExposure }) {
   return (
     <Pressable
       onPress={() => router.push(`/company/${company.ticker}`)}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: fill.press }]}
+      style={({ pressed }) => [
+        styles.row,
+        divided && styles.rowDivided,
+        pressed && { backgroundColor: fill.press },
+      ]}
       accessibilityRole="button"
       accessibilityLabel={`${company.name}, ${value}, ${change}. ${company.onchainPct}% onchain and allocatable, ${company.observedPct}% observed at a brokerage.`}>
       <View style={styles.tile}>
-        <Body size={11.5} weight="semibold" color="rgba(242,243,245,0.8)">
+        <Body size={12} weight="semibold" color={ink.secondary}>
           {company.initials}
         </Body>
       </View>
 
       <View style={styles.rowBody}>
-        <Body size={14} weight="semibold">
-          {company.name}
-        </Body>
-        <View style={styles.exposureBar}>
-          <View style={[styles.barObserved, { flexGrow: company.observedPct }]} />
-          <View style={[styles.barOnchain, { flexGrow: company.onchainPct }]} />
+        <View style={styles.companyLine}>
+          <View style={styles.flex}>
+            <Body size={14.5} weight="semibold">
+              {company.name}
+            </Body>
+            <Num size={10.5} color={ink.faint} style={styles.ticker}>
+              {company.ticker}
+            </Num>
+          </View>
+          <View style={styles.rowTrailing}>
+            <Num size={14} weight="medium">
+              {value}
+            </Num>
+            <Num size={11.5} color={changeColor} style={styles.rowSub}>
+              {change}
+            </Num>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.rowTrailing}>
-        <Num size={14} weight="medium">
-          {value}
-        </Num>
-        <Num size={11.5} color={changeColor} style={styles.rowSub}>
-          {change}
-        </Num>
+        <View style={styles.exposureBar} accessible={false}>
+          <LinearGradient
+            colors={[palette.cobalt, palette.cobaltDeep]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[styles.barOnchain, { flex: company.onchainPct }]}
+          />
+          <View style={[styles.barObserved, { flex: company.observedPct }]} />
+        </View>
+        <View style={styles.splitLabels}>
+          <Num size={10.5} color={palette.cobaltText}>
+            Wallet {company.onchainPct}%
+          </Num>
+          <Num size={10.5} color={ink.faint}>
+            Brokerage {company.observedPct}%
+          </Num>
+        </View>
       </View>
     </Pressable>
   );
@@ -325,9 +353,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: stroke.hairline,
     borderRadius: radius.xl,
-    paddingHorizontal: 10,
-    paddingTop: 6,
-    paddingBottom: 10,
+    paddingBottom: 4,
     ...shadow.card,
   },
   panelSpecular: {
@@ -339,32 +365,48 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.12)',
   },
   panelHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingTop: 13,
-    paddingBottom: 9,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 14,
+    backgroundColor: fill.subtle,
+    borderBottomWidth: 1,
+    borderBottomColor: stroke.hairline,
   },
+  panelTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  companyList: { paddingHorizontal: 10 },
 
-  row: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 12, borderRadius: radius.md },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 13, paddingHorizontal: 8, paddingVertical: 16 },
+  rowDivided: { borderTopWidth: 1, borderTopColor: stroke.hairline },
   tile: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.sm,
-    backgroundColor: 'rgba(255,255,255,0.055)',
+    width: 42,
+    height: 42,
+    borderRadius: radius.md,
+    backgroundColor: fill.muted,
     borderWidth: 1,
-    borderColor: stroke.hairline,
+    borderColor: stroke.raised,
     alignItems: 'center',
     justifyContent: 'center',
   },
   rowBody: { flex: 1 },
   rowTrailing: { alignItems: 'flex-end' },
   rowSub: { marginTop: 2 },
+  companyLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  ticker: { marginTop: 2 },
+  flex: { flex: 1 },
 
-  exposureBar: { flexDirection: 'row', gap: 3, height: 5, marginTop: 8, width: 132 },
-  barObserved: { borderRadius: 3, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-  barOnchain: { borderRadius: 3, backgroundColor: palette.cobalt },
+  exposureBar: {
+    flexDirection: 'row',
+    height: 8,
+    marginTop: 12,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+    backgroundColor: fill.muted,
+    borderWidth: 1,
+    borderColor: stroke.hairline,
+  },
+  barObserved: { backgroundColor: fill.active },
+  barOnchain: { height: '100%' },
+  splitLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
 
   ledger: { paddingHorizontal: 2, paddingVertical: 4 },
   ledgerRow: {

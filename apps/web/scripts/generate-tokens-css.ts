@@ -9,7 +9,7 @@
  *
  * Run with `bun run tokens`.
  */
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { fill, ink, palette, radius, ramps, space, stroke } from '@tradetoken/design-tokens';
@@ -49,7 +49,17 @@ for (const [key, value] of Object.entries(space)) push(`spacing-${kebab(key)}`, 
 
 lines.push('}', '');
 
-writeFileSync(fileURLToPath(new URL('../src/app/tokens.css', import.meta.url)), lines.join('\n'));
+const outputPath = fileURLToPath(new URL('../src/app/tokens.css', import.meta.url));
+const output = lines.join('\n');
+
+if (process.argv.includes('--check')) {
+  const current = readFileSync(outputPath, 'utf8');
+  if (current !== output) {
+    throw new Error('Generated tokens are stale. Run `bun run tokens` and commit the result.');
+  }
+} else {
+  writeFileSync(outputPath, output);
+}
 
 function kebab(value: string) {
   return value.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();

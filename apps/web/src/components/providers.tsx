@@ -8,7 +8,7 @@ import { privyAppId, privyClientId } from '@/lib/privy';
 
 /**
  * Web uses `@privy-io/react-auth`. The React Native SDK is iOS/Android only and
- * must never reach this dependency graph — see docs/MONOREPO_WEB_HANDOFF.md.
+ * must never reach this dependency graph.
  */
 export function Providers({ children }: { children: React.ReactNode }) {
   return (

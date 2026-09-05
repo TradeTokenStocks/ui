@@ -25,7 +25,7 @@ export function ScreenField({
       aria-hidden
       className={cn('pointer-events-none absolute inset-x-0 top-0 -z-10 overflow-hidden', className)}
       style={{ height }}>
-      <DitherField ramp={ramp} intensity={intensity} {...props} />
+      <DitherField intensity={intensity} {...(ramp ? { ramp } : {})} {...props} />
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-bg/85 to-bg" />
     </div>
   );

@@ -19,7 +19,12 @@ export function ActiveStrategyScreen() {
 
   return (
     <View style={styles.root}>
-      <StrategyScene insets={insets} ticker={ticker} standalone onBack={() => router.back()} />
+      <StrategyScene
+        insets={insets}
+        {...(ticker ? { ticker } : {})}
+        standalone
+        onBack={() => router.back()}
+      />
 
       <View style={[styles.nav, { bottom: insets.bottom + 20 }]}>
         <BottomNav

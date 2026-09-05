@@ -4,7 +4,14 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Check } from 'lucide-react';
-import { b20Symbol, bandMarket, formatNumber, formatUsd, projectBand } from '@tradetoken/domain';
+import {
+  b20Symbol,
+  bandMarket,
+  formatNumber,
+  formatUsd,
+  projectBand,
+  resolveCompany,
+} from '@tradetoken/domain';
 import { activeStrategy, companyDetails, wallet } from '@tradetoken/domain/fixtures';
 
 import { Chip, Display, Num, Panel, SandboxNote } from '@/components/primitives';
@@ -31,7 +38,7 @@ export function StrategyReviewScreen() {
   const router = useRouter();
 
   const ticker = (params.get('ticker') ?? 'NVDA').toUpperCase();
-  const company = companyDetails[ticker] ?? companyDetails.NVDA!;
+  const company = resolveCompany(companyDetails, ticker, 'NVDA');
   const allocation = numericParam(params.get('allocation'), 12000);
   const band = numericParam(params.get('band'), 10);
 

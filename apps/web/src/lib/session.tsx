@@ -16,6 +16,7 @@ type SessionValue = {
   /** True whenever the data on screen is simulated — which is most of the time. */
   isSandbox: boolean;
   enterSandbox: () => void;
+  enterAuthenticated: () => void;
   leaveSandbox: () => void;
 };
 
@@ -31,6 +32,7 @@ export function SessionProvider({
   const [mode, setMode] = useState<SessionMode>(initialMode);
 
   const enterSandbox = useCallback(() => setMode('sandbox'), []);
+  const enterAuthenticated = useCallback(() => setMode('authenticated'), []);
   const leaveSandbox = useCallback(() => setMode('visitor'), []);
 
   const value = useMemo<SessionValue>(
@@ -40,9 +42,10 @@ export function SessionProvider({
       // make the brokerage data or the fills real, so the label stays.
       isSandbox: true,
       enterSandbox,
+      enterAuthenticated,
       leaveSandbox,
     }),
-    [mode, enterSandbox, leaveSandbox],
+    [mode, enterSandbox, enterAuthenticated, leaveSandbox],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

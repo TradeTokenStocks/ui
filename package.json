@@ -13,7 +13,12 @@
     "dev:web": "turbo dev --filter=@tradetoken/web",
     "build": "turbo build",
     "lint": "turbo lint",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "tokens": "bun run --cwd apps/web tokens",
+    "tokens:check": "bun run --cwd apps/web tokens:check",
+    "check": "bun run tokens:check && bun run lint && bun run typecheck",
+    "verify": "bun run check && bun run build",
+    "doctor:mobile": "bun run --cwd apps/mobile doctor"
   },
   "devDependencies": {
     "turbo": "^2.10.12"

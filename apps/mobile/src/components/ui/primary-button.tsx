@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
-import { Button, Host, Text } from '@expo/ui';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
-import { palette, radius } from '@/theme/tokens';
+import { Body } from '@/components/ui/text';
+import { palette, radius, shadow, stroke } from '@/theme/tokens';
 
 type Props = {
   label: string;
@@ -12,14 +12,7 @@ type Props = {
   accessibilityHint?: string;
 };
 
-/**
- * The app's single saturated action.
- *
- * There is deliberately only one of these on any screen. Cobalt fill means
- * "this is executable", the same thing it means on a balance card, so a second
- * one would dilute the only signal the user has for what can actually move
- * money.
- */
+/** A predictable, high-contrast primary action on both native platforms. */
 export function PrimaryButton({
   label,
   onPress,
@@ -27,41 +20,45 @@ export function PrimaryButton({
   style,
   accessibilityHint,
 }: Props) {
-  const [width, setWidth] = useState<number>();
-
-  const handleLayout = (event: LayoutChangeEvent) => {
-    const nextWidth = Math.round(event.nativeEvent.layout.width);
-    setWidth((current) => (current === nextWidth ? current : nextWidth));
-  };
-
   return (
-    <View
-      accessible
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled }}
-      onLayout={handleLayout}
-      style={style}>
-      <Host matchContents={{ vertical: true }} seedColor={palette.cobalt} style={{ width: '100%' }}>
-        <Button
-          onPress={onPress}
-          disabled={disabled}
-          variant="filled"
-          style={{ ...styles.button, width }}>
-          <Text numberOfLines={1} textStyle={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>
-            {label}
-          </Text>
-        </Button>
-      </Host>
-    </View>
+      style={({ pressed }) => [
+        styles.button,
+        style,
+        pressed && !disabled && styles.pressed,
+        disabled && styles.disabled,
+      ]}>
+      <LinearGradient
+        pointerEvents="none"
+        colors={[palette.cobalt, palette.cobaltDeep]}
+        start={{ x: 0.08, y: 0 }}
+        end={{ x: 0.92, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <Body size={15} weight="bold" color="#fff">
+        {label}
+      </Body>
+    </Pressable>
   );
 }
 
-const styles = {
+const styles = StyleSheet.create({
   button: {
     height: 56,
     borderRadius: radius.lg,
-    backgroundColor: palette.cobalt,
+    borderWidth: 1,
+    borderColor: stroke.onAccent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    ...shadow.accent,
   },
-};
+  pressed: { opacity: 0.86, transform: [{ scale: 0.992 }] },
+  disabled: { opacity: 0.42 },
+});

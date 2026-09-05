@@ -53,7 +53,7 @@ export function NavRail({ onNavigate }: { onNavigate?: () => void }) {
     <nav aria-label="Primary" className="flex h-full flex-col gap-1 p-3">
       <Link
         href="/"
-        onClick={onNavigate}
+        {...(onNavigate ? { onClick: onNavigate } : {})}
         className="mb-4 flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-fill-press">
         <span className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-cobalt to-violet text-[11px] font-bold text-white">
           T
@@ -70,8 +70,8 @@ export function NavRail({ onNavigate }: { onNavigate?: () => void }) {
           <Link
             key={href}
             href={href}
-            onClick={onNavigate}
-            aria-current={active ? 'page' : undefined}
+            {...(onNavigate ? { onClick: onNavigate } : {})}
+            {...(active ? { 'aria-current': 'page' as const } : {})}
             className={cn(
               'group flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13.5px] font-medium transition-colors',
               active
@@ -98,8 +98,8 @@ export function NavRail({ onNavigate }: { onNavigate?: () => void }) {
           <Link
             key={href}
             href={href}
-            onClick={onNavigate}
-            aria-current={active ? 'page' : undefined}
+            {...(onNavigate ? { onClick: onNavigate } : {})}
+            {...(active ? { 'aria-current': 'page' as const } : {})}
             className={cn(
               'flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] transition-colors',
               active
@@ -120,7 +120,7 @@ export function NavRail({ onNavigate }: { onNavigate?: () => void }) {
         </Chip>
         <Link
           href={mode === 'authenticated' ? '/wallet' : '/sign-in'}
-          onClick={onNavigate}
+          {...(onNavigate ? { onClick: onNavigate } : {})}
           className="flex items-center gap-2.5 rounded-lg border border-stroke-hairline bg-fill-subtle px-2.5 py-2 transition-colors hover:bg-fill-press">
           <span className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-cobalt to-violet text-[11px] font-semibold text-white">
             M

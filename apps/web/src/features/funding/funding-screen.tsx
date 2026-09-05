@@ -16,7 +16,8 @@ export function FundingScreen() {
   const [handedOff, setHandedOff] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const selected = fundingMethods.find((item) => item.id === method)!;
+  const selected = fundingMethods.find((item) => item.id === method);
+  if (!selected) throw new Error(`Unknown funding method: ${method}`);
 
   const proceed = async () => {
     if (method === 'wallet') {

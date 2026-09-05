@@ -44,11 +44,6 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-example
-
 # generated native folders (Continuous Native Generation — never commit)
 apps/mobile/ios/
 apps/mobile/android/
-
-# Derived from design/src/v3-dark.html by design/split-screens.py
-/design/screens/

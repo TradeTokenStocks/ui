@@ -66,7 +66,7 @@ export const shadow = {
  * bezier tuple and millisecond durations.
  */
 export const motion = {
-  rise: rawMotion.rise as unknown as readonly [number, number, number, number],
+  rise: rawMotion.rise,
   riseDuration: rawMotion.riseDurationMs,
   stagger: rawMotion.staggerMs,
 } as const;
@@ -78,5 +78,5 @@ export const motion = {
  */
 export const navMotion = {
   durationMs: 260,
-  easing: rawMotion.rise as unknown as readonly [number, number, number, number],
+  easing: rawMotion.rise,
 } as const;

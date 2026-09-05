@@ -7,7 +7,7 @@ import { ditherRamp, palette } from '@/theme/tokens';
 /**
  * Ordered-dither (Bayer 8x8) halftone of a slow domain-warped flow field.
  *
- * Ported from `design/src/dither-field.js`, which is WebGL/GLSL. The field
+ * Ported from the original WebGL/GLSL concept. The field
  * math below is verbatim from that shader; only the things GLSL and SkSL
  * genuinely disagree about were changed:
  *

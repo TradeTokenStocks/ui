@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -9,6 +9,7 @@ import {
   executableTotalUsd,
   formatUsd,
   projectBand,
+  resolveCompany,
 } from '@tradetoken/domain';
 import { companyDetails } from '@tradetoken/domain/fixtures';
 
@@ -23,7 +24,7 @@ const ALLOCATION_STEP = 500;
 export function StrategyBuilderScreen() {
   const params = useSearchParams();
   const ticker = (params.get('ticker') ?? 'NVDA').toUpperCase();
-  const company = companyDetails[ticker] ?? companyDetails.NVDA!;
+  const company = resolveCompany(companyDetails, ticker, 'NVDA');
 
   const executable = executableTotalUsd(company);
   const maximum = allocationCeilingUsd(executable, ALLOCATION_STEP);
@@ -31,10 +32,11 @@ export function StrategyBuilderScreen() {
   const [allocation, setAllocation] = useState(Math.min(12000, maximum));
   const [band, setBand] = useState(10);
 
-  const projection = useMemo(
-    () => projectBand({ priceUsd: company.priceUsd, allocationUsd: allocation, bandPct: band }),
-    [company.priceUsd, allocation, band],
-  );
+  const projection = projectBand({
+    priceUsd: company.priceUsd,
+    allocationUsd: allocation,
+    bandPct: band,
+  });
 
   // Chart geometry only — how far the highlighted band is inset, and how fast
   // the field drifts behind it. Presentation, so it stays in the client.

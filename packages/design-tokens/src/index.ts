@@ -7,8 +7,8 @@
  * objects, `expo-google-fonts` family constants, Tailwind utilities — stays in
  * that client.
  *
- * Values are extracted from `design/src/v3-dark.html`. The app is dark-only:
- * the design has no light variant, and a half-built one is worse than none.
+ * These values are the maintained source of truth for the product's dark-only
+ * visual language. A half-built light variant is worse than an honest absence.
  */
 
 export const palette = {

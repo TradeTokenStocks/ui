@@ -10,8 +10,7 @@
     "ios": "expo run:ios",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "doctor": "expo-doctor",
-    "reset-project": "node ./scripts/reset-project.js"
+    "doctor": "expo-doctor"
   },
   "dependencies": {
     "@ethersproject/shims": "^5.8.0",
@@ -21,7 +20,6 @@
     "@expo/ui": "~57.0.16",
     "@privy-io/expo": "^0.72.0",
     "@privy-io/expo-native-extensions": "^0.0.12",
-    "@react-native-segmented-control/segmented-control": "2.5.7",
     "@shopify/react-native-skia": "2.6.2",
     "@tradetoken/design-tokens": "workspace:*",
     "@tradetoken/domain": "workspace:*",
