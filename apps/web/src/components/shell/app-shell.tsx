@@ -54,7 +54,7 @@ export function AppShell({
         </header>
 
         <div className="flex min-w-0 flex-1">
-          <main className="min-w-0 flex-1">
+          <main className="relative min-w-0 flex-1">
             <div className="mx-auto w-full max-w-[860px] px-5 py-8 sm:px-8 lg:py-12">
               {children}
             </div>

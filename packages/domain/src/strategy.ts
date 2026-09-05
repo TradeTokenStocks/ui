@@ -50,7 +50,7 @@ export type BandProjection = {
  * quotes more often and earns more fees, and is likelier to be walked out of.
  */
 export function projectBand({ priceUsd, allocationUsd, bandPct }: BandInputs): BandProjection {
-  const fillsPerDay = Math.max(4, Math.round(220 / bandPct));
+  const fillsPerDay = bandPct > 0 ? Math.max(4, Math.round(220 / bandPct)) : 4;
   const stockSideUsd = allocationUsd / 2;
 
   return {
@@ -73,6 +73,7 @@ export function driftRiskFor(bandPct: number): DriftRisk {
 
 /** The allocation slider ceiling, snapped down so the steps land on round money. */
 export function allocationCeilingUsd(executableUsd: number, step = 500) {
+  if (executableUsd <= 0) return 0;
   return Math.max(1000, Math.floor(executableUsd / step) * step);
 }
 

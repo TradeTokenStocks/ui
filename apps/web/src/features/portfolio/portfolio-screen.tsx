@@ -39,11 +39,13 @@ export function PortfolioScreen() {
 
   return (
     <div className="space-y-10">
-      <header className="relative">
+      <header>
         <h1 className="sr-only">Portfolio</h1>
         {/* Ambient field behind the balance only. It stops well above the list
-            so no figure ever sits on moving pixels. */}
-        <div className="pointer-events-none absolute inset-x-[-2rem] top-[-3.5rem] -z-10 h-[320px] overflow-hidden sm:inset-x-[-2.5rem]">
+            so no figure ever sits on moving pixels. Positioned relative to
+            <main> (see AppShell) so it spans the full content area rather
+            than the narrower max-w reading column. */}
+        <div className="pointer-events-none absolute inset-x-0 top-[-1.5rem] -z-10 h-[320px] overflow-hidden lg:top-[-0.5rem]">
           <DitherField ramp="portfolio" intensity={0.85} />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-bg/80 to-bg" />
         </div>

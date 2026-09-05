@@ -113,11 +113,24 @@ export async function POST(request: NextRequest) {
       userSecret = registered.userSecret;
       sealed = sealCredential({ subject, userId, userSecret }, config.credentialKey);
     } catch {
-      return failure(
-        502,
-        'UPSTREAM_ERROR',
-        'SnapTrade could not create this connection. Try again in a moment.',
-      );
+      // userId is a deterministic hash of the Privy subject, so a lost or
+      // cleared local credential collides with a still-registered SnapTrade
+      // user — registration fails every time until that orphaned user is
+      // removed. Delete it and register fresh once, per SnapTrade's own
+      // documented recovery path, before giving up.
+      try {
+        await snaptrade.authentication.deleteSnapTradeUser({ userId });
+        const registered = (await snaptrade.authentication.registerSnapTradeUser({ userId })).data;
+        if (!registered.userSecret) throw new Error('SnapTrade did not return a user secret');
+        userSecret = registered.userSecret;
+        sealed = sealCredential({ subject, userId, userSecret }, config.credentialKey);
+      } catch {
+        return failure(
+          502,
+          'UPSTREAM_ERROR',
+          'SnapTrade could not create this connection. Try again in a moment.',
+        );
+      }
     }
   }
 

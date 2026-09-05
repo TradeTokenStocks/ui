@@ -27,7 +27,7 @@ const groups = (value: number, digits: number) =>
 export function formatUsd(value: number, { digits = 0, sign = false } = {}) {
   const body = `$${groups(value, digits)}`;
   if (value < 0) return `${MINUS}${body}`;
-  return sign ? `+${body}` : body;
+  return sign && value > 0 ? `+${body}` : body;
 }
 
 /**
@@ -36,13 +36,18 @@ export function formatUsd(value: number, { digits = 0, sign = false } = {}) {
  */
 export function splitUsd(value: number): { whole: string; cents: string } {
   const [whole = '0', cents = '00'] = groups(value, 2).split('.');
-  return { whole: `$${whole}`, cents: `.${cents}` };
+  const sign = value < 0 ? MINUS : '';
+  return { whole: `${sign}$${whole}`, cents: `.${cents}` };
 }
 
-/** `+2.4%` / `−0.3%`. Always signed: a day change without a sign is unreadable. */
+/**
+ * `+2.4%` / `−0.3%`. Always signed: a day change without a sign is unreadable.
+ * Flat (0%) gets no sign — see `isGain`, which treats it as neutral, not a gain.
+ */
 export function formatPercent(value: number, digits = 1) {
   const body = `${groups(value, digits)}%`;
-  return value < 0 ? `${MINUS}${body}` : `+${body}`;
+  if (value < 0) return `${MINUS}${body}`;
+  return value > 0 ? `+${body}` : body;
 }
 
 /** Bare grouped number — token counts, fill counts, share-equivalents. */

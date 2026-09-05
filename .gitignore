@@ -47,3 +47,5 @@ yarn-error.*
 # generated native folders (Continuous Native Generation — never commit)
 apps/mobile/ios/
 apps/mobile/android/
+.vercel
+.env*
