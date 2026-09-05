@@ -8,22 +8,18 @@ import { BackButton } from '@/components/ui/back-button';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { Body, Display, Num } from '@/components/ui/text';
 import { ValueSlider } from '@/components/ui/value-slider';
-import { companyDetails } from '@/data/fixtures';
+import {
+  allocationCeilingUsd,
+  bandMarket,
+  executableTotalUsd,
+  formatUsd,
+  projectBand,
+} from '@tradetoken/domain';
+import { companyDetails } from '@tradetoken/domain/fixtures';
 import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
 
 const CHART_HEIGHT = 132;
 const CHART_RAMP = ['#101733', '#1F2A66', '#4F6BF0'] as const;
-
-function money(value: number, digits = 0) {
-  return value.toLocaleString('en-US', {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-}
-
-function parseMoney(value: string) {
-  return Number(value.replace(/[^0-9.]/g, ''));
-}
 
 export function StrategyBuilderScreen() {
   const insets = useSafeAreaInsets();
@@ -31,28 +27,23 @@ export function StrategyBuilderScreen() {
   const { ticker: tickerParam } = useLocalSearchParams<{ ticker?: string }>();
   const ticker = tickerParam?.toUpperCase() || 'NVDA';
   const company = companyDetails[ticker] ?? companyDetails.NVDA;
-  const price = parseMoney(company.price);
-  const walletMaximum = Math.max(1000, Math.floor(parseMoney(company.executableTotal) / 500) * 500);
+  const price = company.priceUsd;
+  const executable = executableTotalUsd(company);
+  const walletMaximum = allocationCeilingUsd(executable);
   const [allocation, setAllocation] = useState(Math.min(12000, walletMaximum));
   const [band, setBand] = useState(10);
 
-  const values = useMemo(() => {
-    const lower = price * (1 - band / 100);
-    const upper = price * (1 + band / 100);
-    const fillsPerDay = Math.max(4, Math.round(220 / band));
-    const risk = band <= 7 ? 'High' : band <= 16 ? 'Moderate' : 'Low';
-    return {
-      lower,
-      upper,
-      fillsPerDay,
-      risk,
-      fees: allocation * 0.0000042 * fillsPerDay,
-      edge: Math.max(10, 46 - band * 0.9),
-      auraSpeed: 0.02 + (40 - band) * 0.004,
-    };
-  }, [allocation, band, price]);
+  const projection = useMemo(
+    () => projectBand({ priceUsd: price, allocationUsd: allocation, bandPct: band }),
+    [allocation, band, price],
+  );
 
-  const token = `${company.ticker.toLowerCase()}·B20`;
+  // Chart geometry only: how far the highlighted band is inset, and how fast
+  // the Skia field drifts behind it. Presentation, so it stays in the client.
+  const edge = Math.max(10, 46 - band * 0.9);
+  const auraSpeed = 0.02 + (40 - band) * 0.004;
+
+  const market = bandMarket(company.ticker);
 
   return (
     <View style={styles.root}>
@@ -66,7 +57,7 @@ export function StrategyBuilderScreen() {
               Concentrated band
             </Body>
             <Num size={11.5} color={ink.quaternary} style={styles.headerSub}>
-              {token} / USDC · 1inch Aqua
+              {market} · 1inch Aqua
             </Num>
           </View>
         </View>
@@ -76,9 +67,9 @@ export function StrategyBuilderScreen() {
             Allocate from wallet
           </Body>
           <View style={styles.amountRow}>
-            <Display size={38}>${money(allocation)}</Display>
+            <Display size={38}>{formatUsd(allocation)}</Display>
             <Num size={12} color={ink.quaternary}>
-              of ${money(parseMoney(company.executableTotal))}
+              of {formatUsd(executable)}
             </Num>
           </View>
           <ValueSlider
@@ -98,7 +89,7 @@ export function StrategyBuilderScreen() {
               Price band
             </Body>
             <Num size={12.5} weight="medium" color={palette.cobaltText}>
-              ${money(values.lower, 2)} — ${money(values.upper, 2)}
+              {formatUsd(projection.lowerUsd, { digits: 2 })} — {formatUsd(projection.upperUsd, { digits: 2 })}
             </Num>
           </View>
 
@@ -108,7 +99,7 @@ export function StrategyBuilderScreen() {
               height={CHART_HEIGHT}
               ramp={CHART_RAMP}
               bg={palette.surfaceSunken}
-              speed={values.auraSpeed}
+              speed={auraSpeed}
               levels={4}
               cell={2}
               contour={0.7}
@@ -117,12 +108,12 @@ export function StrategyBuilderScreen() {
             <View
               style={[
                 styles.selectedBand,
-                { left: `${values.edge}%`, right: `${values.edge}%` },
+                { left: `${edge}%`, right: `${edge}%` },
               ]}
             />
             <View style={styles.priceLine} />
             <Num size={11} weight="medium" color={palette.bg} style={styles.priceTag}>
-              ${money(price, 2)}
+              {formatUsd(price, { digits: 2 })}
             </Num>
             <Body size={11} weight="medium" color={ink.quaternary} style={styles.stockLabel}>
               all stock
@@ -157,7 +148,7 @@ export function StrategyBuilderScreen() {
           <View style={styles.outcomeRow}>
             <View style={[styles.outcomeCard, styles.outcomeStock]}>
               <Num size={11.5} color={ink.tertiary}>
-                at ${money(values.lower, 2)}
+                at {formatUsd(projection.lowerUsd, { digits: 2 })}
               </Num>
               <Num size={18} weight="medium" color={palette.cobaltText} style={styles.outcomeValue}>
                 100% stock
@@ -168,7 +159,7 @@ export function StrategyBuilderScreen() {
             </View>
             <View style={styles.outcomeCard}>
               <Num size={11.5} color={ink.tertiary}>
-                at ${money(values.upper, 2)}
+                at {formatUsd(projection.upperUsd, { digits: 2 })}
               </Num>
               <Num size={18} weight="medium" style={styles.outcomeValue}>
                 100% USDC
@@ -180,12 +171,12 @@ export function StrategyBuilderScreen() {
           </View>
 
           <View style={styles.stats}>
-            <Stat label="Fills / day" value={String(values.fillsPerDay)} />
-            <Stat label="Fees / day" value={`$${money(values.fees, 2)}`} />
+            <Stat label="Fills / day" value={String(projection.fillsPerDay)} />
+            <Stat label="Fees / day" value={formatUsd(projection.feesPerDayUsd, { digits: 2 })} />
             <Stat
               label="Drift risk"
-              value={values.risk}
-              color={values.risk === 'High' ? palette.amber : palette.text}
+              value={projection.driftRisk}
+              color={projection.driftRisk === 'High' ? palette.amber : palette.text}
             />
           </View>
           <Body size={11} color={ink.faint} style={styles.disclaimer}>

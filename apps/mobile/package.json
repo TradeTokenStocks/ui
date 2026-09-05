@@ -23,6 +23,8 @@
     "@privy-io/expo-native-extensions": "^0.0.12",
     "@react-native-segmented-control/segmented-control": "2.5.7",
     "@shopify/react-native-skia": "2.6.2",
+    "@tradetoken/design-tokens": "workspace:*",
+    "@tradetoken/domain": "workspace:*",
     "expo": "~57.0.20",
     "expo-apple-authentication": "~57.0.1",
     "expo-application": "~57.0.2",
@@ -61,6 +63,7 @@
     "viem": "2.56.0"
   },
   "devDependencies": {
+    "@tradetoken/typescript-config": "workspace:*",
     "@types/react": "~19.2.2",
     "eslint": "^9",
     "eslint-config-expo": "^57.0.2",

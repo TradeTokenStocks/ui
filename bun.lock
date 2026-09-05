@@ -21,6 +21,8 @@
         "@privy-io/expo-native-extensions": "^0.0.12",
         "@react-native-segmented-control/segmented-control": "2.5.7",
         "@shopify/react-native-skia": "2.6.2",
+        "@tradetoken/design-tokens": "workspace:*",
+        "@tradetoken/domain": "workspace:*",
         "expo": "~57.0.20",
         "expo-apple-authentication": "~57.0.1",
         "expo-application": "~57.0.2",
@@ -59,12 +61,33 @@
         "viem": "2.56.0",
       },
       "devDependencies": {
+        "@tradetoken/typescript-config": "workspace:*",
         "@types/react": "~19.2.2",
         "eslint": "^9",
         "eslint-config-expo": "^57.0.2",
         "expo-doctor": "^1.16.5",
         "typescript": "~6.0.3",
       },
+    },
+    "packages/design-tokens": {
+      "name": "@tradetoken/design-tokens",
+      "version": "1.0.0",
+      "devDependencies": {
+        "@tradetoken/typescript-config": "workspace:*",
+        "typescript": "~6.0.3",
+      },
+    },
+    "packages/domain": {
+      "name": "@tradetoken/domain",
+      "version": "1.0.0",
+      "devDependencies": {
+        "@tradetoken/typescript-config": "workspace:*",
+        "typescript": "~6.0.3",
+      },
+    },
+    "packages/typescript-config": {
+      "name": "@tradetoken/typescript-config",
+      "version": "1.0.0",
     },
   },
   "trustedDependencies": [
@@ -464,7 +487,13 @@
 
     "@sinclair/typebox": ["@sinclair/typebox@0.27.12", "", {}, "sha512-hhyNJ+nbR6ZR7pToHvllEFun9TL0sbL+tk/ON75lo+Xas054uez98qRbsuNt7MBCyZKK4+8Yli/OAGZhmfBZ/g=="],
 
+    "@tradetoken/design-tokens": ["@tradetoken/design-tokens@workspace:packages/design-tokens"],
+
+    "@tradetoken/domain": ["@tradetoken/domain@workspace:packages/domain"],
+
     "@tradetoken/mobile": ["@tradetoken/mobile@workspace:apps/mobile"],
+
+    "@tradetoken/typescript-config": ["@tradetoken/typescript-config@workspace:packages/typescript-config"],
 
     "@turbo/darwin-64": ["@turbo/darwin-64@2.10.12", "", { "os": "darwin", "cpu": "x64" }, "sha512-9nKgKoF6ZOUsM+or0OtNf+TTJSfGvDNP7ZFv/ZGWVwOSCkumyctQiTeHwB4UNljHTnC41AqylgbunLDHoccNrA=="],
 

@@ -7,7 +7,16 @@ import { DitherField } from '@/components/dither-field';
 import { BackButton } from '@/components/ui/back-button';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { Body, Display, Num } from '@/components/ui/text';
-import { companyDetails, type Representation } from '@/data/fixtures';
+import {
+  executableTotalUsd,
+  formatNumber,
+  formatPercent,
+  formatUsd,
+  isGain,
+  splitUsd,
+  type Representation,
+} from '@tradetoken/domain';
+import { companyDetails } from '@tradetoken/domain/fixtures';
 import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
 
 const FIELD_HEIGHT = 340;
@@ -43,6 +52,11 @@ export function CompanyScreen() {
     );
   }
 
+  const total = splitUsd(company.totalUsd);
+  // Derived, not stored: adding a representation moves the ceiling with it
+  // instead of silently disagreeing with the list above the button.
+  const executable = formatUsd(executableTotalUsd(company));
+
   return (
     <View style={styles.root}>
       <View style={[styles.field, { height: FIELD_HEIGHT }]} pointerEvents="none">
@@ -71,14 +85,14 @@ export function CompanyScreen() {
               {company.name}
             </Body>
             <Num size={11.5} color={ink.quaternary} style={styles.headerSub}>
-              {company.ticker} · {company.price}
+              {company.ticker} · {formatUsd(company.priceUsd, { digits: 2 })}
             </Num>
           </View>
           <Num
             size={12.5}
             weight="medium"
-            color={company.changeIsPositive ? palette.positive : ink.quaternary}>
-            {company.change}
+            color={isGain(company.changePct) ? palette.positive : ink.quaternary}>
+            {formatPercent(company.changePct)}
           </Num>
         </View>
 
@@ -87,16 +101,16 @@ export function CompanyScreen() {
             Exposure across {company.representations.length} representations
           </Body>
           <Display size={46} style={styles.total}>
-            {company.total}
+            {total.whole}
             <Display size={46} style={styles.cents}>
-              {company.totalCents}
+              {total.cents}
             </Display>
           </Display>
           {/* Share-equivalents, not token counts. One B20 token is not one
               share once a multiplier has moved, so the headline figure is
               always expressed in the unit that survives a corporate action. */}
           <Num size={12.5} weight="medium" color={ink.quaternary} style={styles.shareEq}>
-            {company.shareEquivalents}
+            {`${formatNumber(company.shareEquivalents, 1)} share-equivalents`}
           </Num>
 
           <View style={styles.stack}>
@@ -143,7 +157,7 @@ export function CompanyScreen() {
           style={styles.ctaFade}
         />
         <PrimaryButton
-          label={`Allocate ${company.executableTotal} executable`}
+          label={`Allocate ${executable} executable`}
           onPress={() =>
             router.push({ pathname: '/strategy/new', params: { ticker: company.ticker } })
           }
@@ -165,7 +179,7 @@ function RepresentationRow({ rep, first }: { rep: Representation; first: boolean
     <View
       style={[styles.row, !first && styles.rowDivided]}
       accessible
-      accessibilityLabel={`${rep.label}. ${rep.detail}. ${rep.value}. ${
+      accessibilityLabel={`${rep.label}. ${rep.detail}. ${formatUsd(rep.valueUsd)}. ${
         rep.executable ? 'Executable onchain' : 'Observed only, cannot be allocated'
       }.`}>
       <View
@@ -192,7 +206,7 @@ function RepresentationRow({ rep, first }: { rep: Representation; first: boolean
         </Num>
       </View>
       <Num size={13.5} weight="medium">
-        {rep.value}
+        {formatUsd(rep.valueUsd)}
       </Num>
     </View>
   );

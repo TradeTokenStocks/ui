@@ -5,17 +5,11 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Body, Display, Num } from '@/components/ui/text';
-import { companyDetails } from '@/data/fixtures';
+import { b20Symbol, bandMarket, formatNumber, formatUsd, projectBand } from '@tradetoken/domain';
+import { companyDetails } from '@tradetoken/domain/fixtures';
 import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
 
 const HOLD_DURATION = 1400;
-
-function money(value: number, digits = 0) {
-  return value.toLocaleString('en-US', {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-}
 
 function numericParam(value: string | string[] | undefined, fallback: number) {
   const parsed = Number(Array.isArray(value) ? value[0] : value);
@@ -29,12 +23,14 @@ export function StrategyReviewScreen() {
   const company = companyDetails[ticker] ?? companyDetails.NVDA;
   const allocation = numericParam(params.allocation, 12000);
   const band = numericParam(params.band, 10);
-  const price = numericParam(company.price.replace(/[^0-9.]/g, ''), 178.4);
-  const lower = price * (1 - band / 100);
-  const upper = price * (1 + band / 100);
-  const stockSide = allocation / 2;
-  const tokens = stockSide / price;
-  const token = `${company.ticker.toLowerCase()}·B20`;
+  // Same projection the builder showed. Recomputed from the route params
+  // rather than passed through, so a deep link into review is still correct.
+  const projection = projectBand({
+    priceUsd: company.priceUsd,
+    allocationUsd: allocation,
+    bandPct: band,
+  });
+  const market = bandMarket(company.ticker);
 
   const [hold, setHold] = useState(0);
   const [complete, setComplete] = useState(false);
@@ -85,10 +81,10 @@ export function StrategyReviewScreen() {
           Review strategy
         </Body>
         <Display size={34} style={styles.previewAmount}>
-          ${money(allocation)}
+          {formatUsd(allocation)}
         </Display>
         <Num size={12.5} color={ink.tertiary} style={styles.previewMeta}>
-          {token} / USDC · band ${money(lower, 2)} — ${money(upper, 2)}
+          {market} · band {formatUsd(projection.lowerUsd, { digits: 2 })} — {formatUsd(projection.upperUsd, { digits: 2 })}
         </Num>
       </View>
       <View style={styles.scrim} />
@@ -120,14 +116,14 @@ export function StrategyReviewScreen() {
         <View style={styles.approvals}>
           <Approval
             index="1"
-            title={`Allow Aqua to use ${money(stockSide)} USDC`}
+            title={`Allow Aqua to use ${formatNumber(projection.usdcSideUsd)} USDC`}
             detail="Spend cap, revocable any time"
             signed
           />
           <Approval
             index="2"
             title="Open the band"
-            detail={`${money(tokens, 1)} ${token} + ${money(stockSide)} USDC`}
+            detail={`${formatNumber(projection.tokens, 1)} ${b20Symbol(company.ticker)} + ${formatNumber(projection.usdcSideUsd)} USDC`}
           />
         </View>
 

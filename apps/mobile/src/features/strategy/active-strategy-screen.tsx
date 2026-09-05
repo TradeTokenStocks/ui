@@ -9,7 +9,15 @@ import { BottomNav } from '@/components/ui/bottom-nav';
 import { PulseDot } from '@/components/ui/pulse-dot';
 import { Segmented, type Segment } from '@/components/ui/segmented';
 import { Body, Display, Num } from '@/components/ui/text';
-import { activity, type LedgerRow } from '@/data/fixtures';
+import {
+  bandMarket,
+  formatLedgerAmount,
+  formatNumber,
+  formatPercent,
+  formatUsd,
+  type LedgerRow,
+} from '@tradetoken/domain';
+import { activeStrategy, activity } from '@tradetoken/domain/fixtures';
 import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
 
 const FILTERS: Segment[] = [
@@ -18,16 +26,12 @@ const FILTERS: Segment[] = [
   { key: 'observed', label: 'Observed' },
 ];
 
-function money(value: number) {
-  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 export function ActiveStrategyScreen() {
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState('all');
-  const [fillCount, setFillCount] = useState(318);
-  const [feeTotal, setFeeTotal] = useState(247.18);
-  const [stockPct, setStockPct] = useState(38);
+  const [fillCount, setFillCount] = useState<number>(activeStrategy.fills);
+  const [feeTotal, setFeeTotal] = useState<number>(activeStrategy.feesEarnedUsd);
+  const [stockPct, setStockPct] = useState<number>(activeStrategy.stockPct);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -55,10 +59,10 @@ export function ActiveStrategyScreen() {
           <BackButton onPress={() => router.back()} />
           <View style={styles.headerCopy}>
             <Body size={15} weight="semibold">
-              nvda·B20 / USDC
+              {bandMarket(activeStrategy.ticker)}
             </Body>
             <Num size={11.5} color={ink.quaternary} style={styles.headerSub}>
-              Open 14 days
+              Open {activeStrategy.openDays} days
             </Num>
           </View>
           <View style={styles.inBandChip}>
@@ -74,14 +78,14 @@ export function ActiveStrategyScreen() {
             Position value
           </Body>
           <Display size={44} style={styles.positionValue}>
-            ${money(positionValue)}
+            {formatUsd(positionValue, { digits: 2 })}
           </Display>
           <View style={styles.gainRow}>
             <Num size={13} weight="medium" color={palette.positive}>
-              +${money(feeTotal)} fees
+              {formatUsd(feeTotal, { digits: 2, sign: true })} fees
             </Num>
             <Num size={13} color={ink.quaternary}>
-              +2.06% vs deposit
+              {formatPercent(activeStrategy.gainVsDepositPct, 2)} vs deposit
             </Num>
           </View>
         </View>
@@ -96,14 +100,14 @@ export function ActiveStrategyScreen() {
             <View
               style={[styles.marketTag, { left: `${Math.min(76, 42 + stockPct / 2)}%` }]}>
               <Num size={11} weight="medium" color={palette.bg}>
-                $178.40
+                {formatUsd(activeStrategy.spotUsd, { digits: 2 })}
               </Num>
             </View>
             <Num size={11} color={ink.quaternary} style={styles.lowerLabel}>
-              $160.56
+              {formatUsd(activeStrategy.lowerUsd, { digits: 2 })}
             </Num>
             <Num size={11} color={ink.quaternary} style={styles.upperLabel}>
-              $196.24
+              {formatUsd(activeStrategy.upperUsd, { digits: 2 })}
             </Num>
           </View>
 
@@ -113,7 +117,7 @@ export function ActiveStrategyScreen() {
           </View>
           <View style={styles.compositionLabels}>
             <Num size={11.5} weight="medium" color={palette.cobaltText}>
-              {stockPct}% stock · {(stockPct * 0.687).toFixed(1)} tokens
+              {stockPct}% stock · {formatNumber(stockPct * 0.687, 1)} tokens
             </Num>
             <Num size={11.5} weight="medium" color={ink.quaternary}>
               {usdcPct}% USDC
@@ -121,9 +125,9 @@ export function ActiveStrategyScreen() {
           </View>
 
           <View style={styles.stats}>
-            <Stat label="Fills" value={fillCount.toLocaleString('en-US')} />
-            <Stat label="Fees earned" value={`$${money(feeTotal)}`} />
-            <Stat label="Time in band" value="91%" />
+            <Stat label="Fills" value={formatNumber(fillCount)} />
+            <Stat label="Fees earned" value={formatUsd(feeTotal, { digits: 2 })} />
+            <Stat label="Time in band" value={`${activeStrategy.timeInBandPct}%`} />
           </View>
         </View>
 
@@ -182,7 +186,7 @@ function ActivityRow({ row }: { row: LedgerRow }) {
       </View>
       <View style={styles.activityAmount}>
         <Num size={12.5} weight="medium">
-          {row.amount}
+          {formatLedgerAmount(row.amount)}
         </Num>
         <Num size={11} color={ink.faint} style={styles.activityTime}>
           {row.time}

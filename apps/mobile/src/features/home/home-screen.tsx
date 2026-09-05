@@ -17,16 +17,23 @@ import { PulseDot } from '@/components/ui/pulse-dot';
 import { Segmented, type Segment } from '@/components/ui/segmented';
 import { Body, Display, Num } from '@/components/ui/text';
 import {
+  formatLedgerAmount,
+  formatNumber,
+  formatPercent,
+  formatUsd,
+  isGain,
+  splitUsd,
+  type CompanyExposure,
+  type LedgerRow,
+} from '@tradetoken/domain';
+import {
   account,
   activity,
   companies,
   events,
   hasUnreviewedEvents,
-  tickerByCompany,
   totals,
-  type CompanyExposure,
-  type LedgerRow,
-} from '@/data/fixtures';
+} from '@tradetoken/domain/fixtures';
 import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
 
 /** Height of the dither field at the top of the screen. */
@@ -45,6 +52,7 @@ export function HomeScreen() {
   const [tab, setTab] = useState<NavKey>('portfolio');
 
   const navHeight = 56 + insets.bottom + 26;
+  const exposure = splitUsd(totals.exposureUsd);
 
   const selectTab = (next: NavKey) => {
     setTab(next);
@@ -106,17 +114,17 @@ export function HomeScreen() {
             Total exposure
           </Body>
           <Display size={50} style={styles.balanceValue}>
-            ${totals.exposure}
+            {exposure.whole}
             <Display size={50} style={styles.cents}>
-              {totals.exposureCents}
+              {exposure.cents}
             </Display>
           </Display>
           <View style={styles.changeRow}>
             <Num size={13} weight="medium" color={palette.positive}>
-              {totals.changeAbsolute}
+              {formatUsd(totals.changeAbsoluteUsd, { digits: 2, sign: true })}
             </Num>
             <Num size={13} color={ink.quaternary}>
-              {totals.changeRelative}
+              {`${formatPercent(totals.changePct, 2)} today`}
             </Num>
           </View>
         </View>
@@ -137,7 +145,7 @@ export function HomeScreen() {
               Wallet · allocatable
             </Body>
             <Num size={20} weight="medium" color="#fff" style={styles.cardValue}>
-              {totals.walletAllocatable}
+              {formatUsd(totals.walletAllocatableUsd)}
             </Num>
           </View>
 
@@ -146,7 +154,7 @@ export function HomeScreen() {
               Brokerage · observed
             </Body>
             <Num size={20} weight="medium" style={styles.cardValue}>
-              {totals.brokerageObserved}
+              {formatUsd(totals.brokerageObservedUsd)}
             </Num>
           </View>
         </View>
@@ -167,11 +175,11 @@ export function HomeScreen() {
                   By company
                 </Body>
                 <Body size={12} weight="medium" color={ink.quaternary}>
-                  {totals.holdingsCount} holdings
+                  {formatNumber(totals.holdingsCount)} holdings
                 </Body>
               </View>
               {companies.map((company) => (
-                <CompanyRow key={company.name} company={company} />
+                <CompanyRow key={company.ticker} company={company} />
               ))}
               </>
             ) : (
@@ -212,17 +220,16 @@ export function HomeScreen() {
  * show the same value and mean completely different things.
  */
 function CompanyRow({ company }: { company: CompanyExposure }) {
-  const changeColor =
-    company.changeIsPositive === true ? palette.positive : ink.quaternary;
-
-  const ticker = tickerByCompany[company.name];
+  const value = formatUsd(company.valueUsd);
+  const change = formatPercent(company.changePct);
+  const changeColor = isGain(company.changePct) ? palette.positive : ink.quaternary;
 
   return (
     <Pressable
-      onPress={() => ticker && router.push(`/company/${ticker}`)}
+      onPress={() => router.push(`/company/${company.ticker}`)}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: fill.press }]}
       accessibilityRole="button"
-      accessibilityLabel={`${company.name}, ${company.value}, ${company.change}. ${company.onchainPct}% onchain and allocatable, ${company.observedPct}% observed at a brokerage.`}>
+      accessibilityLabel={`${company.name}, ${value}, ${change}. ${company.onchainPct}% onchain and allocatable, ${company.observedPct}% observed at a brokerage.`}>
       <View style={styles.tile}>
         <Body size={11.5} weight="semibold" color="rgba(242,243,245,0.8)">
           {company.initials}
@@ -241,10 +248,10 @@ function CompanyRow({ company }: { company: CompanyExposure }) {
 
       <View style={styles.rowTrailing}>
         <Num size={14} weight="medium">
-          {company.value}
+          {value}
         </Num>
         <Num size={11.5} color={changeColor} style={styles.rowSub}>
-          {company.change}
+          {change}
         </Num>
       </View>
     </Pressable>
@@ -253,19 +260,21 @@ function CompanyRow({ company }: { company: CompanyExposure }) {
 
 function LedgerItem({ row }: { row: LedgerRow }) {
   const onchain = row.provenance === 'onchain';
+  const needsReview = row.amount.kind === 'action';
+  const amount = formatLedgerAmount(row.amount);
   return (
     <Pressable
       onPress={row.id === 'nvda-split' ? () => router.push('/events/nvda-split') : undefined}
       style={({ pressed }) => [styles.ledgerRow, pressed && { backgroundColor: fill.press }]}
       accessibilityRole="button"
-      accessibilityLabel={`${row.title}. ${row.meta}. ${row.amount}, ${row.time}. ${
+      accessibilityLabel={`${row.title}. ${row.meta}. ${amount}, ${row.time}. ${
         onchain ? 'Onchain' : 'Observed at a brokerage'
       }.`}>
       <View
         style={[
           styles.provenanceBar,
           onchain
-            ? { backgroundColor: row.amount === 'Review' ? palette.amber : palette.cobalt }
+            ? { backgroundColor: needsReview ? palette.amber : palette.cobalt }
             : { borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
         ]}
       />
@@ -279,7 +288,7 @@ function LedgerItem({ row }: { row: LedgerRow }) {
       </View>
       <View style={styles.rowTrailing}>
         <Num size={13} weight="medium">
-          {row.amount}
+          {amount}
         </Num>
         <Num size={11} color={ink.faint} style={styles.rowSub}>
           {row.time}
