@@ -151,6 +151,13 @@ export function DitherField({
 }: Props) {
   const clock = useClock();
   const source = useMemo(() => effect(), []);
+  // Colour parsing uses String/Array helpers that live on the JS runtime.
+  // Precompute these values here rather than synchronously calling `rgb`
+  // from Reanimated's UI worklet below.
+  const colors = useMemo(
+    () => ({ r1: rgb(ramp[0]), r2: rgb(ramp[1]), r3: rgb(ramp[2]), cbg: rgb(bg) }),
+    [bg, ramp],
+  );
 
   const uniforms = useDerivedValue(() => ({
     u_res: [width, height],
@@ -159,10 +166,10 @@ export function DitherField({
     u_levels: levels,
     u_int: intensity,
     u_contour: contour,
-    r1: rgb(ramp[0]),
-    r2: rgb(ramp[1]),
-    r3: rgb(ramp[2]),
-    cbg: rgb(bg),
+    r1: colors.r1,
+    r2: colors.r2,
+    r3: colors.r3,
+    cbg: colors.cbg,
   }));
 
   if (!source) {
