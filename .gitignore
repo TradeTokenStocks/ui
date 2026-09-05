@@ -9,6 +9,14 @@ dist/
 web-build/
 expo-env.d.ts
 
+# Next.js
+.next/
+next-env.d.ts
+out/
+
+# Turborepo
+.turbo/
+
 # Native
 .kotlin/
 *.orig.*
@@ -36,11 +44,8 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-example
-
-# generated native folders
-/ios
-/android
-
-# Derived from design/src/v3-dark.html by design/split-screens.py
-/design/screens/
+# generated native folders (Continuous Native Generation — never commit)
+apps/mobile/ios/
+apps/mobile/android/
+.vercel
+.env*

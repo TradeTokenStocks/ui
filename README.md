@@ -1,56 +1,75 @@
-# Welcome to your Expo app 👋
+# TradeTokenStocks
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+TradeTokenStocks is a sandbox portfolio experience for understanding one company position across two custody models: onchain holdings that can be allocated to a strategy, and brokerage holdings that are visible but read-only.
 
-## Get started
+The repository is a Bun/Turborepo monorepo with two clients:
 
-1. Install dependencies
+- `apps/mobile` — Expo SDK 57 and Expo Router
+- `apps/web` — Next.js 16 App Router
+- `packages/domain` — platform-neutral types, fixtures, formatting, and strategy math
+- `packages/design-tokens` — shared semantic colour, spacing, typography, and motion values
+- `packages/typescript-config` — strict TypeScript defaults for shared packages
 
-   ```bash
-   npm install
-   ```
+All balances, positions, events, and transactions shown by default are deterministic sandbox fixtures. An optional SnapTrade handoff can connect a real brokerage in read-only mode; live holdings are not yet rendered in the portfolio.
 
-2. Start the app
+## Requirements
 
-   ```bash
-   npx expo start
-   ```
+- [Bun](https://bun.sh/) 1.3.14 or compatible
+- Node.js 20 or newer for the underlying Expo and Next.js toolchains
+- A development build for mobile features that rely on native modules
 
-In the output, you'll find options to open the app in a
+## Setup
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Install the workspace dependencies from the repository root:
 
 ```bash
-npm run reset-project
+bun install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Copy the environment templates only for the clients you plan to run:
 
-### Other setup steps
+```bash
+cp apps/mobile/.env.example apps/mobile/.env.local
+cp apps/web/.env.example apps/web/.env.local
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+The public Privy identifiers enable real authentication. The web app remains usable in sandbox mode without them. Never place secrets or private keys in a `NEXT_PUBLIC_*` or `EXPO_PUBLIC_*` variable.
 
-## Learn more
+### Live brokerage handoff
 
-To learn more about developing your project with Expo, look at the following resources:
+The Next.js route at `/api/snaptrade/portal` is the single backend for both clients. It verifies a Privy access token, registers the corresponding SnapTrade user, and generates a short-lived read-only Connection Portal URL. Web stores the server-encrypted SnapTrade credential in an HttpOnly cookie; mobile stores the same opaque value in SecureStore. The SnapTrade consumer key and user secret never enter either client.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Configure the server-only values documented in `apps/web/.env.example`. Keep `SNAPTRADE_CREDENTIAL_ENCRYPTION_KEY` stable between deployments: changing it invalidates existing encrypted connection credentials. Mobile additionally needs `EXPO_PUBLIC_API_URL` pointed at the deployed HTTPS web origin.
 
-## Join the community
+## Development
 
-Join our community of developers creating universal apps.
+```bash
+bun run dev          # both clients
+bun run dev:mobile   # Expo development server
+bun run dev:web      # Next.js at http://localhost:3000
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Useful mobile commands live in `apps/mobile/package.json`, including `android`, `ios`, and `doctor`. The project uses Expo Continuous Native Generation, so `apps/mobile/ios` and `apps/mobile/android` are generated and must not be edited or committed.
+
+## Quality checks
+
+```bash
+bun run check        # generated tokens, lint, and strict typechecking
+bun run build        # production builds
+bun run verify       # check followed by build
+```
+
+Run `bun run tokens` after changing `packages/design-tokens`. The generated web CSS is committed so token drift is visible in review; `bun run check` verifies that it is current.
+
+## Architecture rules
+
+- Keep route files in `apps/mobile/src/app` and `apps/web/src/app`; put components, features, hooks, and utilities outside route directories.
+- Shared packages must remain platform-neutral. They cannot import React, React Native, Expo, Next.js, browser globals, or either Privy SDK.
+- Keep authentication adapters platform-local: `@privy-io/expo` on mobile and `@privy-io/react-auth` on web.
+- Never accept a client-provided redirect URL for SnapTrade. Web and mobile callbacks come from server-owned environment configuration.
+- Preserve the visual semantics: cobalt means onchain/actionable, while the quiet outlined treatment means brokerage/observed.
+- Add dependency and workflow commands to the relevant `package.json`; do not rely on undocumented one-off scripts.
+
+## Status
+
+The repository is an active ETHOnline 2026 prototype. Privy authentication and the read-only SnapTrade portal handoff are implemented; brokerage synchronization into the portfolio, settlement, and strategy execution remain fixture-backed.
