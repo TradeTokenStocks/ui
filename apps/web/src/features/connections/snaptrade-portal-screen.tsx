@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePrivy } from '@privy-io/react-auth';
+import { isSnapTradePortalResponse } from '@tradetoken/domain';
 import {
   snaptradeInstitutions,
   snaptradeScenarios,
@@ -11,6 +13,7 @@ import {
 import { Chip, Display, Num, Panel, SandboxNote, SectionLabel } from '@/components/primitives';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { isPrivyConfigured } from '@/lib/privy';
 import { cn } from '@/lib/utils';
 
 /**
@@ -61,6 +64,8 @@ export function SnapTradePortalScreen({ mode }: { mode?: string }) {
           transactions, never trading.
         </p>
       </div>
+
+      {isPrivyConfigured ? <LivePortalAction {...(mode ? { mode } : {})} /> : null}
 
       <div className="flex items-start gap-3 rounded-lg border border-amber/20 bg-amber/[0.07] p-4">
         <span className="mt-1 size-1.5 shrink-0 rounded-full bg-amber" />
@@ -140,6 +145,64 @@ export function SnapTradePortalScreen({ mode }: { mode?: string }) {
         server and are never exposed to the browser.
       </SandboxNote>
     </div>
+  );
+}
+
+function LivePortalAction({ mode }: { mode?: string }) {
+  const router = useRouter();
+  const { ready, authenticated, getAccessToken } = usePrivy();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const openPortal = async () => {
+    if (!authenticated) {
+      router.push('/sign-in');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) throw new Error('Your session expired. Sign in and try again.');
+      const response = await fetch('/api/snaptrade/portal', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ client: 'web' }),
+      });
+      const payload: unknown = await response.json();
+      if (!isSnapTradePortalResponse(payload)) throw new Error('The server returned an invalid response.');
+      if (!payload.ok) throw new Error(payload.error.message);
+      window.location.assign(payload.redirectUri);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not open SnapTrade.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Panel className="border-teal/20 bg-teal/[0.045] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="text-[13px] font-semibold">Live, read-only connection</p>
+          <p className="mt-1 text-[11.5px] text-ink-tertiary">
+            Sign in with Privy, then continue securely on SnapTrade.
+          </p>
+        </div>
+        <Button onClick={() => void openPortal()} disabled={!ready || busy}>
+          {busy
+            ? 'Opening…'
+            : authenticated
+              ? mode === 'reconnect'
+                ? 'Open repair portal'
+                : 'Open SnapTrade'
+              : 'Sign in to connect'}
+        </Button>
+      </div>
+      {error ? <p role="alert" className="mt-3 text-[11.5px] text-amber-bright">{error}</p> : null}
+    </Panel>
   );
 }
 

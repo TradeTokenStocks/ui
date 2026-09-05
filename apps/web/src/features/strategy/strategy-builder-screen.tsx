@@ -46,9 +46,9 @@ export function StrategyBuilderScreen() {
     <div className="space-y-8">
       <header>
         <Link
-          href={`/companies/${company.ticker}`}
+          href={{ pathname: '/strategies/new/type', query: { ticker: company.ticker } }}
           className="text-[12.5px] font-medium text-ink-tertiary transition-colors hover:text-ink-primary">
-          ← {company.name}
+          ← Strategy type
         </Link>
         <Display as="h1" className="mt-4 text-3xl">
           Concentrated band

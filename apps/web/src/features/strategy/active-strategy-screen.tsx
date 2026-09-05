@@ -8,9 +8,10 @@ import {
   formatNumber,
   formatPercent,
   formatUsd,
+  resolveStrategy,
   type LedgerRow,
 } from '@tradetoken/domain';
-import { activeStrategy, activity } from '@tradetoken/domain/fixtures';
+import { strategies, strategyActivity } from '@tradetoken/domain/fixtures';
 
 import {
   Chip,
@@ -22,6 +23,7 @@ import {
   Stat,
 } from '@/components/primitives';
 import { ScreenField } from '@/components/screen-field';
+import { DitherField } from '@/components/dither-field';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
@@ -32,21 +34,24 @@ const FILTERS = [
   { value: 'observed', label: 'Observed' },
 ] as const;
 
-export function ActiveStrategyScreen() {
+export function ActiveStrategyScreen({ ticker }: { ticker: string }) {
   const [filter, setFilter] = useState<string>('all');
+  const strategy = resolveStrategy(strategies, ticker);
 
   const rows = useMemo(
-    () => activity.filter((row) => filter === 'all' || row.provenance === filter),
-    [filter],
+    () =>
+      (strategyActivity[strategy.ticker] ?? []).filter(
+        (row) => filter === 'all' || row.provenance === filter,
+      ),
+    [filter, strategy.ticker],
   );
 
-  const positionValue =
-    activeStrategy.depositedUsd + activeStrategy.feesEarnedUsd + activeStrategy.stockPct * 12.8 - 238;
-  const usdcPct = 100 - activeStrategy.stockPct;
+  const positionValue = strategy.depositedUsd * (1 + strategy.gainVsDepositPct / 100);
+  const usdcPct = 100 - strategy.stockPct;
   // Where spot sits inside the band, as a percentage across the chart.
   const spotPct =
-    ((activeStrategy.spotUsd - activeStrategy.lowerUsd) /
-      (activeStrategy.upperUsd - activeStrategy.lowerUsd)) *
+    ((strategy.spotUsd - strategy.lowerUsd) /
+      (strategy.upperUsd - strategy.lowerUsd)) *
     100;
 
   return (
@@ -54,9 +59,12 @@ export function ActiveStrategyScreen() {
       <ScreenField ramp="strategy" intensity={0.6} />
 
       <header>
+        <Link href="/strategies" className="mb-5 inline-block text-[12.5px] font-medium text-ink-tertiary transition-colors hover:text-ink-primary">
+          ← Strategies
+        </Link>
         <div className="flex flex-wrap items-center gap-3">
           <Display as="h1" className="text-2xl">
-            {bandMarket(activeStrategy.ticker)}
+            {bandMarket(strategy.ticker)}
           </Display>
           <Chip tone="positive">
             <PulseDot />
@@ -64,17 +72,17 @@ export function ActiveStrategyScreen() {
           </Chip>
         </div>
         <Num className="mt-1.5 block text-[12px] text-ink-quaternary">
-          Open {activeStrategy.openDays} days · opened from executable exposure only
+          Open {strategy.openDays} days · opened from executable exposure only
         </Num>
 
         <p className="mt-7 text-[12.5px] font-medium text-ink-tertiary">Position value</p>
         <Display className="mt-1 text-5xl">{formatUsd(positionValue, { digits: 2 })}</Display>
         <div className="mt-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <Num className="text-[13px] font-medium text-positive">
-            {formatUsd(activeStrategy.feesEarnedUsd, { digits: 2, sign: true })} fees
+            {formatUsd(strategy.feesEarnedUsd, { digits: 2, sign: true })} fees
           </Num>
           <Num className="text-[13px] text-ink-quaternary">
-            {formatPercent(activeStrategy.gainVsDepositPct, 2)} vs deposit
+            {formatPercent(strategy.gainVsDepositPct, 2)} vs deposit
           </Num>
         </div>
       </header>
@@ -83,6 +91,14 @@ export function ActiveStrategyScreen() {
         {/* Where the band sits against spot. The shaded region is the range the
             strategy quotes in; outside it the position stops rebalancing. */}
         <div className="relative h-[120px] overflow-hidden rounded-lg border border-stroke-hairline bg-cobalt/[0.06]">
+          <DitherField
+            ramp="strategy"
+            cell={2}
+            speed={0.02}
+            intensity={0.46}
+            className="absolute inset-0 opacity-70"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-bg/5 via-transparent to-bg/60" />
           <div className="absolute inset-y-0 left-[8%] right-[8%] border-x-2 border-cobalt/70 bg-cobalt/10" />
           <div
             className="absolute inset-y-0 w-px bg-white/85"
@@ -90,13 +106,13 @@ export function ActiveStrategyScreen() {
           />
           <Num className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-md bg-white px-2 py-1 text-[11px] font-medium text-bg"
             style={{ left: `${8 + spotPct * 0.84}%` }}>
-            {formatUsd(activeStrategy.spotUsd, { digits: 2 })}
+            {formatUsd(strategy.spotUsd, { digits: 2 })}
           </Num>
           <Num className="absolute bottom-3 left-3 text-[11px] text-ink-quaternary">
-            {formatUsd(activeStrategy.lowerUsd, { digits: 2 })}
+            {formatUsd(strategy.lowerUsd, { digits: 2 })}
           </Num>
           <Num className="absolute right-3 bottom-3 text-[11px] text-ink-quaternary">
-            {formatUsd(activeStrategy.upperUsd, { digits: 2 })}
+            {formatUsd(strategy.upperUsd, { digits: 2 })}
           </Num>
         </div>
 
@@ -104,7 +120,7 @@ export function ActiveStrategyScreen() {
           <div className="flex h-2 gap-1" aria-hidden>
             <div
               className="rounded-pill bg-cobalt"
-              style={{ flexGrow: activeStrategy.stockPct }}
+              style={{ flexGrow: strategy.stockPct }}
             />
             <div
               className="rounded-pill border border-stroke-raised"
@@ -113,20 +129,20 @@ export function ActiveStrategyScreen() {
           </div>
           <div className="mt-2 flex justify-between">
             <Num className="text-[11.5px] font-medium text-cobalt-text">
-              {activeStrategy.stockPct}% stock ·{' '}
-              {formatNumber(activeStrategy.stockPct * 0.687, 1)} tokens
+              {strategy.stockPct}% stock ·{' '}
+              {formatNumber(strategy.stockPct * 0.687, 1)} tokens
             </Num>
             <Num className="text-[11.5px] font-medium text-ink-quaternary">{usdcPct}% USDC</Num>
           </div>
         </div>
 
         <div className="mt-6 grid grid-cols-3 gap-4 border-t border-stroke-hairline pt-5">
-          <Stat label="Fills" value={formatNumber(activeStrategy.fills)} />
+          <Stat label="Fills" value={formatNumber(strategy.fills)} />
           <Stat
             label="Fees earned"
-            value={formatUsd(activeStrategy.feesEarnedUsd, { digits: 2 })}
+            value={formatUsd(strategy.feesEarnedUsd, { digits: 2 })}
           />
-          <Stat label="Time in band" value={`${activeStrategy.timeInBandPct}%`} />
+          <Stat label="Time in band" value={`${strategy.timeInBandPct}%`} />
         </div>
       </Panel>
 
@@ -161,13 +177,15 @@ export function ActiveStrategyScreen() {
 
       <div className="flex flex-wrap items-center gap-3">
         <Button asChild variant="outline">
-          <Link href={{ pathname: '/strategies/new', query: { ticker: activeStrategy.ticker } }}>
+          <Link href={{ pathname: '/strategies/new/type', query: { ticker: strategy.ticker } }}>
             Open another band
           </Link>
         </Button>
-        <Button asChild variant="ghost">
-          <Link href="/events/nvda-split">Review the Nvidia split</Link>
-        </Button>
+        {strategy.ticker === 'NVDA' ? (
+          <Button asChild variant="ghost">
+            <Link href="/events/nvda-split">Review the Nvidia split</Link>
+          </Button>
+        ) : null}
       </div>
 
       <SandboxNote>

@@ -39,7 +39,10 @@ export function AppShell({
                 <Menu className="size-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[264px] bg-surface-sunken p-0">
+            <SheetContent
+              side="left"
+              className="isolate w-[264px] border-stroke-raised p-0 shadow-[18px_0_48px_rgba(0,0,0,0.7)]"
+              style={{ backgroundColor: '#0C0E12' }}>
               <SheetTitle className="sr-only">Navigation</SheetTitle>
               <NavRail onNavigate={() => setOpen(false)} />
             </SheetContent>

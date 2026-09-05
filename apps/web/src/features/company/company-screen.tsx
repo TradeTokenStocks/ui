@@ -127,7 +127,7 @@ export function CompanyScreen({ ticker }: { ticker: string }) {
         <div className="space-y-2 sm:w-[280px]">
           <Button asChild size="lg" className="w-full">
             <Link
-              href={{ pathname: '/strategies/new', query: { ticker: company.ticker } }}
+              href={{ pathname: '/strategies/new/type', query: { ticker: company.ticker } }}
               aria-describedby="allocate-note">
               Allocate {formatUsd(executable)} executable
             </Link>

@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 
-import { ActiveStrategyScreen } from '@/features/strategy/active-strategy-screen';
+import { StrategyListScreen } from '@/features/strategy/strategy-list-screen';
 
 export const metadata: Metadata = { title: 'Strategies' };
 
 export default function StrategiesPage() {
-  return <ActiveStrategyScreen />;
+  return <StrategyListScreen />;
 }

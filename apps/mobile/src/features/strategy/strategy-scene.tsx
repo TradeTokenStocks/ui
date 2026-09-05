@@ -18,7 +18,7 @@ import {
   strategyMechanismLabel,
   type LedgerRow,
 } from '@tradetoken/domain';
-import { activity, strategies } from '@tradetoken/domain/fixtures';
+import { strategies, strategyActivity } from '@tradetoken/domain/fixtures';
 import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
 
 const FILTERS: Segment[] = [
@@ -64,9 +64,13 @@ export function StrategyScene({ insets, ticker, standalone = false, onBack }: Pr
     return () => clearInterval(timer);
   }, []);
 
-  const rows = activity.filter((row) => filter === 'all' || row.provenance === filter);
+  const rows = (strategyActivity[strategy.ticker] ?? []).filter(
+    (row) => filter === 'all' || row.provenance === filter,
+  );
   const usdcPct = 100 - stockPct;
-  const positionValue = 11762 + stockPct * 12.8 + feeTotal;
+  const positionValue =
+    strategy.depositedUsd * (1 + strategy.gainVsDepositPct / 100) +
+    (feeTotal - strategy.feesEarnedUsd);
 
   return (
     <View style={styles.root}>

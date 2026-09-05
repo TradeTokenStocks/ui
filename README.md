@@ -10,7 +10,7 @@ The repository is a Bun/Turborepo monorepo with two clients:
 - `packages/design-tokens` — shared semantic colour, spacing, typography, and motion values
 - `packages/typescript-config` — strict TypeScript defaults for shared packages
 
-All balances, positions, events, and transactions currently shown in the product are deterministic sandbox fixtures. No brokerage or blockchain is queried.
+All balances, positions, events, and transactions shown by default are deterministic sandbox fixtures. An optional SnapTrade handoff can connect a real brokerage in read-only mode; live holdings are not yet rendered in the portfolio.
 
 ## Requirements
 
@@ -34,6 +34,12 @@ cp apps/web/.env.example apps/web/.env.local
 ```
 
 The public Privy identifiers enable real authentication. The web app remains usable in sandbox mode without them. Never place secrets or private keys in a `NEXT_PUBLIC_*` or `EXPO_PUBLIC_*` variable.
+
+### Live brokerage handoff
+
+The Next.js route at `/api/snaptrade/portal` is the single backend for both clients. It verifies a Privy access token, registers the corresponding SnapTrade user, and generates a short-lived read-only Connection Portal URL. Web stores the server-encrypted SnapTrade credential in an HttpOnly cookie; mobile stores the same opaque value in SecureStore. The SnapTrade consumer key and user secret never enter either client.
+
+Configure the server-only values documented in `apps/web/.env.example`. Keep `SNAPTRADE_CREDENTIAL_ENCRYPTION_KEY` stable between deployments: changing it invalidates existing encrypted connection credentials. Mobile additionally needs `EXPO_PUBLIC_API_URL` pointed at the deployed HTTPS web origin.
 
 ## Development
 
@@ -60,9 +66,10 @@ Run `bun run tokens` after changing `packages/design-tokens`. The generated web 
 - Keep route files in `apps/mobile/src/app` and `apps/web/src/app`; put components, features, hooks, and utilities outside route directories.
 - Shared packages must remain platform-neutral. They cannot import React, React Native, Expo, Next.js, browser globals, or either Privy SDK.
 - Keep authentication adapters platform-local: `@privy-io/expo` on mobile and `@privy-io/react-auth` on web.
+- Never accept a client-provided redirect URL for SnapTrade. Web and mobile callbacks come from server-owned environment configuration.
 - Preserve the visual semantics: cobalt means onchain/actionable, while the quiet outlined treatment means brokerage/observed.
 - Add dependency and workflow commands to the relevant `package.json`; do not rely on undocumented one-off scripts.
 
 ## Status
 
-The repository is an active ETHOnline 2026 prototype. Product flows are implemented against fixtures; live brokerage synchronization, settlement, and strategy execution are not yet connected.
+The repository is an active ETHOnline 2026 prototype. Privy authentication and the read-only SnapTrade portal handoff are implemented; brokerage synchronization into the portfolio, settlement, and strategy execution remain fixture-backed.

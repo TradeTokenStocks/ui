@@ -74,5 +74,44 @@ export const activity: LedgerRow[] = [
   },
 ];
 
+/** Activity scoped to each strategy detail; avoids showing NVDA fills inside AAPL. */
+export const strategyActivity: Readonly<Record<string, readonly LedgerRow[]>> = {
+  NVDA: activity.filter((row) => row.id !== 'div-received'),
+  AAPL: [
+    {
+      id: 'aapl-fill-buy',
+      provenance: 'onchain',
+      title: 'Aqua fill · buy',
+      meta: 'aapl·B20 / USDC · 0.18 @ 224.80',
+      amount: { kind: 'money', valueUsd: -40.46 },
+      time: '8m ago',
+    },
+    {
+      id: 'aapl-fill-sell',
+      provenance: 'onchain',
+      title: 'Aqua fill · sell',
+      meta: 'aapl·B20 / USDC · 0.12 @ 227.10',
+      amount: { kind: 'money', valueUsd: 27.25 },
+      time: '41m ago',
+    },
+    {
+      id: 'div-received',
+      provenance: 'observed',
+      title: 'Dividend received',
+      meta: 'AAPL · Test Brokerage One · simulated',
+      amount: { kind: 'money', valueUsd: 35.5 },
+      time: '29 Aug',
+    },
+    {
+      id: 'aapl-band-opened',
+      provenance: 'onchain',
+      title: 'Band opened',
+      meta: '$6,000 · signed in wallet',
+      amount: { kind: 'money', valueUsd: -6000 },
+      time: '30 Aug',
+    },
+  ],
+};
+
 /** Whether the Events segment shows its amber "needs review" dot. */
 export const hasUnreviewedEvents = true;
