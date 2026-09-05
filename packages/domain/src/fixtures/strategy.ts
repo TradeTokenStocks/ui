@@ -1,9 +1,16 @@
+import type { StrategySummary } from '../types';
+
 /**
  * The one open strategy the demo inspects: a concentrated NVDA/USDC band opened
  * 14 days ago from executable exposure only.
+ *
+ * Kept for callers that only ever dealt with a single strategy. New code
+ * should read from `strategies` instead, which is what the Strategies list
+ * and its `/strategy/[ticker]` detail route are keyed off.
  */
 export const activeStrategy = {
   ticker: 'NVDA',
+  mechanism: 'concentrated',
   openDays: 14,
   depositedUsd: 12000,
   bandPct: 10,
@@ -19,7 +26,34 @@ export const activeStrategy = {
   gainVsDepositPct: 2.06,
   feeTierPct: 0.3,
   networkFeeUsd: 0.04,
-} as const;
+} as const satisfies StrategySummary;
+
+/**
+ * Every strategy the sandbox account currently has open. The list drives the
+ * Strategies tab; each row routes to `/strategy/[ticker]` for the same detail
+ * scene the old single-strategy screen rendered.
+ */
+export const strategies: readonly StrategySummary[] = [
+  activeStrategy,
+  {
+    ticker: 'AAPL',
+    mechanism: 'concentrated',
+    openDays: 6,
+    depositedUsd: 6000,
+    bandPct: 14,
+    /** Derived from AAPL spot at 14%: 226.20 × 0.86 and × 1.14. */
+    lowerUsd: 194.53,
+    upperUsd: 257.87,
+    spotUsd: 226.2,
+    fills: 84,
+    feesEarnedUsd: 41.6,
+    stockPct: 52,
+    timeInBandPct: 78,
+    gainVsDepositPct: 0.94,
+    feeTierPct: 0.3,
+    networkFeeUsd: 0.04,
+  },
+];
 
 /**
  * The Nvidia 10-for-1 split. Value and token count are unchanged; only the

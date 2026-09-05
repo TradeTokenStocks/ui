@@ -1,10 +1,25 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import Animated, {
+  Easing,
+  ReduceMotion,
+  interpolateColor,
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { Body } from '@/components/ui/text';
-import { fill, ink, palette, radius, shadow } from '@/theme/tokens';
+import { fill, font, ink, navMotion, palette, radius, shadow } from '@/theme/tokens';
 
 export type NavKey = 'portfolio' | 'strategies';
+
+const BAR_PADDING = 5;
+const BAR_GAP = 8;
+
+/** Inactive ink sits at 55% — the design's dimmed-icon weight. */
+const DIM = 0.45;
 
 type Props = {
   value: NavKey;
@@ -21,23 +36,92 @@ type Props = {
  * going and the app's single write action — which sits outside the bar so it
  * never reads as a third destination, and is the only saturated element at the
  * bottom of the screen so the eye finds it without hunting.
+ *
+ * The active state is a pill that physically slides between the two slots, not
+ * a background that swaps in place. One shared value drives the pill position
+ * and, in inverse, both tabs' icon weight and label ink — so a switch reads as
+ * a single motion rather than a highlight change and a content change.
  */
 export function BottomNav({ value, onChange, onCreate }: Props) {
+  const [barWidth, setBarWidth] = useState(0);
+  const index = value === 'portfolio' ? 0 : 1;
+
+  // The two slots are equal by construction (flex:1 in a padded row with one
+  // gap), so slot width is derivable from the bar's measured width.
+  const tabWidth = barWidth > 0 ? (barWidth - BAR_PADDING * 2 - BAR_GAP) / 2 : 0;
+  const offset = tabWidth + BAR_GAP;
+
+  const halo = useSharedValue(0);
+  const prevIndex = useRef(index);
+
+  useEffect(() => {
+    if (tabWidth === 0) return;
+    // A real tab change glides the pill; any other re-run (first measure,
+    // rotation) snaps it to its seat so it never sweeps in on its own.
+    if (prevIndex.current !== index) {
+      prevIndex.current = index;
+      halo.set(
+        withTiming(index * offset, {
+          duration: navMotion.durationMs,
+          easing: Easing.bezier(...navMotion.easing),
+          reduceMotion: ReduceMotion.System,
+        }),
+      );
+    } else {
+      halo.set(index * offset);
+    }
+  }, [index, tabWidth, offset, halo]);
+
+  // 0..1 progress of the pill's trip between slot 0 and slot 1.
+  const progress = useDerivedValue(() => (offset > 0 ? halo.get() / offset : 0));
+
+  const haloStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: halo.get() }],
+  }));
+
+  const portfolioIcon = useAnimatedStyle(() => ({ opacity: 1 - progress.get() * DIM }));
+  const portfolioLabel = useAnimatedStyle(() => ({
+    color: interpolateColor(progress.get(), [0, 1], [ink.primary, ink.quaternary]),
+  }));
+  const strategiesIcon = useAnimatedStyle(() => ({ opacity: 1 - DIM + progress.get() * DIM }));
+  const strategiesLabel = useAnimatedStyle(() => ({
+    color: interpolateColor(progress.get(), [0, 1], [ink.quaternary, ink.primary]),
+  }));
+
+  const onBarLayout = (event: LayoutChangeEvent) => {
+    setBarWidth(event.nativeEvent.layout.width);
+  };
+
   return (
     <View style={styles.row}>
-      <View style={styles.bar}>
-        <NavTab
-          label="Portfolio"
-          active={value === 'portfolio'}
+      <View style={styles.bar} onLayout={onBarLayout}>
+        <Animated.View pointerEvents="none" style={[styles.halo, { width: tabWidth }, haloStyle]} />
+
+        <Pressable
           onPress={() => onChange('portfolio')}
-          icon={<PortfolioGlyph />}
-        />
-        <NavTab
-          label="Strategies"
-          active={value === 'strategies'}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: value === 'portfolio' }}
+          style={styles.tab}>
+          <Animated.View style={portfolioIcon}>
+            <PortfolioGlyph />
+          </Animated.View>
+          <Animated.Text numberOfLines={1} style={[styles.tabLabel, portfolioLabel]}>
+            Portfolio
+          </Animated.Text>
+        </Pressable>
+
+        <Pressable
           onPress={() => onChange('strategies')}
-          icon={<StrategiesGlyph />}
-        />
+          accessibilityRole="tab"
+          accessibilityState={{ selected: value === 'strategies' }}
+          style={styles.tab}>
+          <Animated.View style={strategiesIcon}>
+            <StrategiesGlyph />
+          </Animated.View>
+          <Animated.Text numberOfLines={1} style={[styles.tabLabel, strategiesLabel]}>
+            Strategies
+          </Animated.Text>
+        </Pressable>
       </View>
 
       <Pressable
@@ -55,31 +139,6 @@ export function BottomNav({ value, onChange, onCreate }: Props) {
         <View style={styles.plusBarV} />
       </Pressable>
     </View>
-  );
-}
-
-function NavTab({
-  label,
-  active,
-  onPress,
-  icon,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-  icon: React.ReactNode;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="tab"
-      accessibilityState={{ selected: active }}
-      style={[styles.tab, { backgroundColor: active ? fill.active : fill.subtle }]}>
-      <View style={{ opacity: active ? 1 : 0.55 }}>{icon}</View>
-      <Body size={12.5} weight="semibold" color={active ? ink.primary : ink.quaternary}>
-        {label}
-      </Body>
-    </Pressable>
   );
 }
 
@@ -114,13 +173,21 @@ const styles = StyleSheet.create({
   bar: {
     flex: 1,
     flexDirection: 'row',
-    gap: 8,
+    gap: BAR_GAP,
     backgroundColor: 'rgba(18,20,24,0.92)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     borderRadius: radius.nav,
-    padding: 5,
+    padding: BAR_PADDING,
     ...shadow.nav,
+  },
+  halo: {
+    position: 'absolute',
+    left: BAR_PADDING,
+    top: BAR_PADDING,
+    bottom: BAR_PADDING,
+    borderRadius: radius.navTab,
+    backgroundColor: fill.active,
   },
   tab: {
     flex: 1,
@@ -130,6 +197,11 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     borderRadius: radius.navTab,
+  },
+  tabLabel: {
+    fontSize: 12.5,
+    fontFamily: font.sansSemi,
+    letterSpacing: 0.1,
   },
   fab: {
     width: 56,

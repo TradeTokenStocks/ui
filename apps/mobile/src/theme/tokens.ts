@@ -70,3 +70,13 @@ export const motion = {
   riseDuration: rawMotion.riseDurationMs,
   stagger: rawMotion.staggerMs,
 } as const;
+
+/**
+ * Dock switch micro-motion. The sliding pill and the scene cross-fade share
+ * one timing so the bar and the content arrive together; the curve is the
+ * design's rise signature tightened from a screen entrance to a finger tap.
+ */
+export const navMotion = {
+  durationMs: 260,
+  easing: rawMotion.rise as unknown as readonly [number, number, number, number],
+} as const;

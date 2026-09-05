@@ -51,7 +51,8 @@ export function Display({
   size = 50,
   weight = 'semibold',
   color = ink.primary,
-  tracking = -0.028 * 50,
+  // -0.028em at the default 50px size.
+  tracking = -1.4,
   style,
   ...rest
 }: BaseProps) {

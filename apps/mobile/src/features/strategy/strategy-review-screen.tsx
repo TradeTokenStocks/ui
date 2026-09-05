@@ -5,11 +5,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Body, Display, Num } from '@/components/ui/text';
-import { b20Symbol, bandMarket, formatNumber, formatUsd, projectBand } from '@tradetoken/domain';
+import { b20Symbol, bandMarket, formatNumber, formatUsd, projectBand, resolveCompany } from '@tradetoken/domain';
 import { companyDetails } from '@tradetoken/domain/fixtures';
 import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
+import { goBackOrHome } from '@/navigation/go-back';
 
 const HOLD_DURATION = 1400;
+const HOLD_TICK_MS = 16;
 
 function numericParam(value: string | string[] | undefined, fallback: number) {
   const parsed = Number(Array.isArray(value) ? value[0] : value);
@@ -20,7 +22,7 @@ export function StrategyReviewScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ ticker?: string; allocation?: string; band?: string }>();
   const ticker = params.ticker?.toUpperCase() || 'NVDA';
-  const company = companyDetails[ticker] ?? companyDetails.NVDA;
+  const company = resolveCompany(companyDetails, ticker, 'NVDA');
   const allocation = numericParam(params.allocation, 12000);
   const band = numericParam(params.band, 10);
   // Same projection the builder showed. Recomputed from the route params
@@ -37,6 +39,7 @@ export function StrategyReviewScreen() {
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const completeRef = useRef(false);
+  const elapsedHoldMs = useRef(0);
 
   const clearHoldTimer = () => {
     if (timer.current) clearInterval(timer.current);
@@ -56,17 +59,21 @@ export function StrategyReviewScreen() {
 
   const startHolding = () => {
     if (completeRef.current || timer.current) return;
-    const startedAt = Date.now();
+    elapsedHoldMs.current = 0;
     timer.current = setInterval(() => {
-      const next = Math.min(100, ((Date.now() - startedAt) / HOLD_DURATION) * 100);
+      elapsedHoldMs.current += HOLD_TICK_MS;
+      const next = Math.min(100, (elapsedHoldMs.current / HOLD_DURATION) * 100);
       setHold(next);
       if (next >= 100) {
         completeRef.current = true;
         setComplete(true);
         clearHoldTimer();
-        navigateTimer.current = setTimeout(() => router.replace('/strategy/nvda'), 700);
+        navigateTimer.current = setTimeout(
+          () => router.replace(`/strategy/${ticker.toLowerCase()}`),
+          700,
+        );
       }
-    }, 16);
+    }, HOLD_TICK_MS);
   };
 
   const stopHolding = () => {
@@ -87,7 +94,18 @@ export function StrategyReviewScreen() {
           {market} · band {formatUsd(projection.lowerUsd, { digits: 2 })} — {formatUsd(projection.upperUsd, { digits: 2 })}
         </Num>
       </View>
-      <View style={styles.scrim} />
+      <Pressable
+        onPress={() => {
+          // Guard against dismissing out from under the auto-navigate that
+          // fires once signing completes — same completion latch startHolding
+          // uses, so a stray tap right at 100% can't race the replace() below.
+          if (completeRef.current) return;
+          goBackOrHome();
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss"
+        style={styles.scrim}
+      />
 
       <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
         <View style={styles.sheetSpecular} />

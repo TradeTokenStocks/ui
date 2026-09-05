@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DitherField } from '@/components/dither-field';
 import { PulseDot } from '@/components/ui/pulse-dot';
 import { Body, Display } from '@/components/ui/text';
-import { fill, font, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
+import { fill, font, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
 
 const FIELD_HEIGHT = 280;
 const CODE_LENGTH = 6;
@@ -106,7 +106,7 @@ export function SignInScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.root}>
       <View style={[styles.field, { height: FIELD_HEIGHT }]} pointerEvents="none">
-        <DitherField width={width} height={FIELD_HEIGHT} intensity={0.8} />
+        <DitherField width={width} height={FIELD_HEIGHT} ramp={ramps.signIn} intensity={0.8} />
         <LinearGradient
           colors={['rgba(10,11,13,0)', 'rgba(10,11,13,0.88)', palette.bg]}
           locations={[0, 0.55, 1]}

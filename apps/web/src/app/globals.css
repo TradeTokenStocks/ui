@@ -1,0 +1,125 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "./tokens.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * shadcn's primitives are written against semantic names (`bg-card`,
+ * `text-muted-foreground`, `border-border`). Rather than restyle every
+ * component, those names are pointed at the product's palette below, so an
+ * unmodified Radix dialog already looks like the rest of the application.
+ */
+@theme inline {
+  --font-display: var(--font-bricolage);
+  --font-sans: var(--font-instrument);
+  --font-mono: var(--font-geist-mono);
+
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-ink-primary);
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-ink-primary);
+  --color-popover: var(--color-surface);
+  --color-popover-foreground: var(--color-ink-primary);
+  --color-primary: var(--color-cobalt);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--color-fill-muted);
+  --color-secondary-foreground: var(--color-ink-primary);
+  --color-muted: var(--color-fill-subtle);
+  --color-muted-foreground: var(--color-ink-tertiary);
+  --color-accent: var(--color-fill-active);
+  --color-accent-foreground: var(--color-ink-primary);
+  --color-destructive: var(--color-amber);
+  --color-border: var(--color-stroke-hairline);
+  --color-input: var(--color-stroke-raised);
+  --color-ring: var(--color-cobalt);
+
+  /* Radii beyond the design scale, for the few primitives that reach for them. */
+  --radius-2xl: 28px;
+  --radius-3xl: 34px;
+  --radius-4xl: 40px;
+}
+
+/*
+ * Dark only. The design has no light variant and a half-built one is worse
+ * than an honest absence, so the palette is unconditional and `.dark` is
+ * present on <html> purely so primitives' `dark:` branches resolve.
+ */
+:root {
+  color-scheme: dark;
+  --radius: 20px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    /*
+     * Every number in this product is meant to be compared against another
+     * number, so figures never reflow between values.
+     */
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * One visible focus treatment everywhere. Keyboard operation is a stated
+   * acceptance criterion, so this is deliberately not `outline: none`.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-cobalt);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-cobalt) 40%, transparent);
+  }
+}
+
+@layer components {
+  /*
+   * The 1px top highlight that sits on cards and cobalt buttons in the native
+   * app. It is what stops a dark surface reading as a flat hole.
+   */
+  .specular::before {
+    content: "";
+    position: absolute;
+    inset-inline: 12%;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-stroke-specular),
+      transparent
+    );
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  /* Monospaced comparable value: prices, quantities, addresses, timestamps. */
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+}
+
+/*
+ * Honour the OS preference rather than animating regardless. The ambient
+ * fields and staggered entrances are atmosphere, never information.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,19 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackButton } from '@/components/ui/back-button';
+import { DitherField } from '@/components/dither-field';
 import { Body, Display, Num } from '@/components/ui/text';
 import { PulseDot } from '@/components/ui/pulse-dot';
 import { SecondaryButton } from '@/components/ui/secondary-button';
-import { fill, ink, palette, radius, space, stroke } from '@/theme/tokens';
+import { fill, ink, palette, radius, ramps, space, stroke } from '@/theme/tokens';
 import { goBackOrHome } from '@/navigation/go-back';
 
 const scenarioNames: Record<string, string> = { 'self-directed': 'self-directed', 'cash-only': 'cash only', 'no-transactions': 'no transactions' };
+const FIELD_HEIGHT = 220;
 
 export function ConnectionsScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { scenario } = useLocalSearchParams<{ scenario?: string }>();
   const [expired, setExpired] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -32,6 +36,15 @@ export function ConnectionsScreen() {
 
   return (
     <View style={styles.root}>
+      <View style={[styles.field, { height: FIELD_HEIGHT }]} pointerEvents="none">
+        <DitherField width={width} height={FIELD_HEIGHT} ramp={ramps.connections} />
+        <LinearGradient
+          colors={['rgba(10,11,13,0)', 'rgba(10,11,13,0.85)', palette.bg]}
+          locations={[0, 0.55, 1]}
+          style={styles.fieldFade}
+        />
+      </View>
+
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 10 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}><BackButton onPress={goBackOrHome} /><Display size={28}>Connections</Display><View style={[styles.statusBadge, !expired && styles.statusHealthy]}><Body size={10.5} weight="semibold" color={expired ? palette.amberBright : palette.positive}>{expired ? '1 needs repair' : 'All healthy'}</Body></View></View>
         <Body size={12.5} color={ink.tertiary} style={styles.subtitle}>Read-only brokerage data · sandbox fixtures</Body>
@@ -64,7 +77,7 @@ function Action({ label, onPress, accent = false }: { label: string; onPress: ()
 function Legend({ color, title, meta }: { color: string; title: string; meta: string }) { return <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: color }]} /><View><Body size={11.5} weight="semibold">{title}</Body><Body size={10.5} color={ink.tertiary} style={styles.rowMeta}>{meta}</Body></View></View>; }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: palette.bg }, content: { paddingHorizontal: space.gutter, paddingBottom: 42 }, header: { flexDirection: 'row', alignItems: 'center', gap: 13 }, subtitle: { marginTop: 9, marginLeft: 45 }, statusBadge: { marginLeft: 'auto', paddingHorizontal: 9, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: 'rgba(224,163,60,0.09)', borderWidth: 1, borderColor: 'rgba(224,163,60,0.18)' }, statusHealthy: { backgroundColor: 'rgba(74,222,139,0.08)', borderColor: 'rgba(74,222,139,0.18)' },
+  root: { flex: 1, backgroundColor: palette.bg }, content: { paddingHorizontal: space.gutter, paddingBottom: 42 }, field: { position: 'absolute', left: 0, right: 0, top: 0, overflow: 'hidden' }, fieldFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 150 }, header: { flexDirection: 'row', alignItems: 'center', gap: 13 }, subtitle: { marginTop: 9, marginLeft: 45 }, statusBadge: { marginLeft: 'auto', paddingHorizontal: 9, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: 'rgba(224,163,60,0.09)', borderWidth: 1, borderColor: 'rgba(224,163,60,0.18)' }, statusHealthy: { backgroundColor: 'rgba(74,222,139,0.08)', borderColor: 'rgba(74,222,139,0.18)' },
   card: { marginTop: 20, padding: 16, borderRadius: radius.lg, backgroundColor: palette.surface, borderWidth: 1, borderColor: stroke.hairline }, cardHeader: { flexDirection: 'row', gap: 12, alignItems: 'center' }, logo: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(224,163,60,0.1)', alignItems: 'center', justifyContent: 'center' }, logoLive: { backgroundColor: 'rgba(74,222,139,0.07)' }, flex: { flex: 1 }, rowMeta: { marginTop: 3 }, accountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, paddingTop: 14, borderTopWidth: 1, borderTopColor: stroke.hairline }, freshness: { flexDirection: 'row', gap: 8, marginTop: 14 }, freshCard: { flex: 1, borderRadius: radius.md, padding: 12, backgroundColor: fill.subtle, borderWidth: 1, borderColor: stroke.hairline }, freshValue: { marginTop: 7, marginBottom: 5 }, lag: { lineHeight: 17, marginTop: 12 }, actions: { flexDirection: 'row', gap: 8, marginTop: 14 }, actionWrap: { flex: 1 }, expiredRow: { flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: stroke.hairline }, warning: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(224,163,60,0.12)', alignItems: 'center', justifyContent: 'center' },
   legendTitle: { marginTop: 27, marginBottom: 10, marginLeft: 2 }, legend: { borderRadius: radius.lg, backgroundColor: fill.subtle, borderWidth: 1, borderColor: stroke.hairline, padding: 14, gap: 14 }, legendItem: { flexDirection: 'row', alignItems: 'center', gap: 11 }, legendDot: { width: 7, height: 7, borderRadius: 4 },
 });

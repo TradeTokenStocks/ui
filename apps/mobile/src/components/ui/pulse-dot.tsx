@@ -26,14 +26,12 @@ export function PulseDot({ size = 5, color = palette.amber, duration = 2800 }: P
   const progress = useSharedValue(0);
 
   useEffect(() => {
-    progress.value = withRepeat(
-      withTiming(1, { duration, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true,
+    progress.set(
+      withRepeat(withTiming(1, { duration, easing: Easing.inOut(Easing.ease) }), -1, true),
     );
   }, [duration, progress]);
 
-  const style = useAnimatedStyle(() => ({ opacity: 0.35 + progress.value * 0.65 }));
+  const style = useAnimatedStyle(() => ({ opacity: 0.35 + progress.get() * 0.65 }));
 
   return (
     <Animated.View

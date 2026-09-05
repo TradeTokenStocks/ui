@@ -1,21 +1,24 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackButton } from '@/components/ui/back-button';
+import { DitherField } from '@/components/dither-field';
 import { Body, Display } from '@/components/ui/text';
 import { SecondaryButton } from '@/components/ui/secondary-button';
 import { Toggle } from '@/components/ui/toggle';
-import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
+import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
 import { goBackOrHome } from '@/navigation/go-back';
 
 const ADDRESS = '0x7A4C18D2F37e65a9C3b92E49A8107D459B2C9E21';
+const FIELD_HEIGHT = 240;
 
 export function WalletSecurityScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [copied, setCopied] = useState(false);
   const [passkey, setPasskey] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
@@ -27,6 +30,15 @@ export function WalletSecurityScreen() {
 
   return (
     <View style={styles.root}>
+      <View style={[styles.field, { height: FIELD_HEIGHT }]} pointerEvents="none">
+        <DitherField width={width} height={FIELD_HEIGHT} ramp={ramps.wallet} />
+        <LinearGradient
+          colors={['rgba(10,11,13,0)', 'rgba(10,11,13,0.85)', palette.bg]}
+          locations={[0, 0.55, 1]}
+          style={styles.fieldFade}
+        />
+      </View>
+
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 10 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <BackButton onPress={goBackOrHome} />
@@ -95,6 +107,7 @@ function SmallButton({ label, onPress, filled = false }: { label: string; onPres
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg }, content: { paddingHorizontal: space.gutter, paddingBottom: 42 },
+  field: { position: 'absolute', left: 0, right: 0, top: 0, overflow: 'hidden' }, fieldFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 170 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }, headerSpacer: { width: 32 },
   walletCard: { backgroundColor: palette.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: stroke.raised, padding: 18, overflow: 'hidden', ...shadow.card },
   walletAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' }, walletCopy: { marginTop: 16 }, walletMeta: { marginTop: 5 },

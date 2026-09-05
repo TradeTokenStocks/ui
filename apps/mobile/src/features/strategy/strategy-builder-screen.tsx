@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,29 +14,26 @@ import {
   executableTotalUsd,
   formatUsd,
   projectBand,
+  resolveCompany,
 } from '@tradetoken/domain';
 import { companyDetails } from '@tradetoken/domain/fixtures';
-import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
+import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
 
 const CHART_HEIGHT = 132;
-const CHART_RAMP = ['#101733', '#1F2A66', '#4F6BF0'] as const;
 
 export function StrategyBuilderScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { ticker: tickerParam } = useLocalSearchParams<{ ticker?: string }>();
   const ticker = tickerParam?.toUpperCase() || 'NVDA';
-  const company = companyDetails[ticker] ?? companyDetails.NVDA;
+  const company = resolveCompany(companyDetails, ticker, 'NVDA');
   const price = company.priceUsd;
   const executable = executableTotalUsd(company);
   const walletMaximum = allocationCeilingUsd(executable);
-  const [allocation, setAllocation] = useState(Math.min(12000, walletMaximum));
+  const [allocation, setAllocation] = useState(() => Math.min(12000, walletMaximum));
   const [band, setBand] = useState(10);
 
-  const projection = useMemo(
-    () => projectBand({ priceUsd: price, allocationUsd: allocation, bandPct: band }),
-    [allocation, band, price],
-  );
+  const projection = projectBand({ priceUsd: price, allocationUsd: allocation, bandPct: band });
 
   // Chart geometry only: how far the highlighted band is inset, and how fast
   // the Skia field drifts behind it. Presentation, so it stays in the client.
@@ -97,7 +94,7 @@ export function StrategyBuilderScreen() {
             <DitherField
               width={width - 62}
               height={CHART_HEIGHT}
-              ramp={CHART_RAMP}
+              ramp={ramps.strategy}
               bg={palette.surfaceSunken}
               speed={auraSpeed}
               levels={4}

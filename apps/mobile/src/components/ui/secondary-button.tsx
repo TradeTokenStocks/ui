@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
-import { Button, Host } from '@expo/ui';
+import { Button, Host, Text } from '@expo/ui';
 
-import { fill, palette, radius, stroke } from '@/theme/tokens';
+import { fill, ink, palette, radius, stroke } from '@/theme/tokens';
 
 type Props = {
   label: string;
@@ -12,7 +12,16 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Native platform button for compact and secondary actions. */
+/**
+ * Native platform button for compact and secondary actions.
+ *
+ * Renders its label through `@expo/ui`'s own `Text` (via `children`) instead
+ * of the plain `label` prop: the native `label` string has no wrap control at
+ * all on either platform, so a label wider than the measured button — e.g.
+ * "$10,000" in a row of four equally-flexed buttons — wraps mid-token instead
+ * of shrinking or truncating. `numberOfLines={1}` on the child `Text` clips it
+ * with an ellipsis instead.
+ */
 export function SecondaryButton({ label, onPress, accent = false, disabled, style }: Props) {
   const [width, setWidth] = useState<number>();
 
@@ -33,12 +42,16 @@ export function SecondaryButton({ label, onPress, accent = false, disabled, styl
         seedColor={palette.cobalt}
         style={{ width: '100%' }}>
         <Button
-          label={label}
           onPress={onPress}
           disabled={disabled}
           variant={accent ? 'filled' : 'outlined'}
-          style={{ ...styles.base, ...(accent ? styles.accent : styles.secondary), width }}
-        />
+          style={{ ...styles.base, ...(accent ? styles.accent : styles.secondary), width }}>
+          <Text
+            numberOfLines={1}
+            textStyle={{ color: accent ? '#fff' : ink.primary, fontSize: 13.5, fontWeight: '600' }}>
+            {label}
+          </Text>
+        </Button>
       </Host>
     </View>
   );

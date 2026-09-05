@@ -1,4 +1,4 @@
-import type { CompanyDetail, DriftRisk, Representation } from './types';
+import type { CompanyDetail, DriftRisk, Representation, StrategyMechanism, StrategySummary } from './types';
 
 /**
  * Strategy and exposure arithmetic.
@@ -106,4 +106,74 @@ export function b20Symbol(ticker: string) {
 /** The market a band trades on, e.g. `nvda·B20 / USDC`. */
 export function bandMarket(ticker: string) {
   return `${b20Symbol(ticker)} / USDC`;
+}
+
+/** Display name for an Aqua strategy mechanism. */
+export function strategyMechanismLabel(mechanism: StrategyMechanism): string {
+  switch (mechanism) {
+    case 'concentrated':
+      return 'Concentrated liquidity';
+    case 'pegged':
+      return 'Same-stock pegged';
+    case 'xyk':
+      return 'Full range';
+  }
+}
+
+/**
+ * Whether a company has enough distinct executable representations to
+ * support a Same-stock Pegged strategy — that strategy pairs two tokenized
+ * representations of the same underlying stock (e.g. Coinbase B20 and an
+ * Ondo representation of NVDA), so it needs at least two.
+ */
+export function hasPeggedEligibility(company: CompanyDetail): boolean {
+  return executableRepresentations(company).length >= 2;
+}
+
+/**
+ * Looks up a company by ticker, falling back to `fallbackTicker` when the
+ * given one isn't recognized (an unrecognized or missing route param).
+ * Centralizes what used to be an ad hoc `companyDetails[ticker] ??
+ * companyDetails.NVDA` repeated at each call site, with no single place that
+ * documented the fallback existed at all.
+ *
+ * Throws if `fallbackTicker` itself isn't present — that would mean the
+ * fixture data is missing its own guaranteed demo company, not that the
+ * user did anything wrong.
+ */
+export function resolveCompany(
+  companyDetails: Record<string, CompanyDetail>,
+  ticker: string | undefined,
+  fallbackTicker: string,
+): CompanyDetail {
+  const found = ticker ? companyDetails[ticker.toUpperCase()] : undefined;
+  if (found) return found;
+  const fallback = companyDetails[fallbackTicker];
+  if (!fallback) {
+    throw new Error(`resolveCompany: fallback ticker "${fallbackTicker}" is missing from companyDetails`);
+  }
+  return fallback;
+}
+
+/**
+ * Looks up an open strategy by ticker, falling back to the first one.
+ *
+ * Throws on an empty list rather than returning `undefined`: a strategy
+ * detail screen is only ever reached by tapping a row in the Strategies list
+ * or completing the review flow, both of which require at least one open
+ * strategy to exist. An empty list renders the list's own empty state
+ * instead, which has no link into this screen — so this function being
+ * called with no strategies to show would mean that invariant broke
+ * elsewhere, which is worth failing loudly for rather than silently
+ * rendering an undefined strategy's fields.
+ */
+export function resolveStrategy(
+  strategies: readonly StrategySummary[],
+  ticker: string | undefined,
+): StrategySummary {
+  const found = strategies.find((s) => s.ticker === ticker?.toUpperCase());
+  if (found) return found;
+  const first = strategies[0];
+  if (!first) throw new Error('resolveStrategy: called with an empty strategies list');
+  return first;
 }

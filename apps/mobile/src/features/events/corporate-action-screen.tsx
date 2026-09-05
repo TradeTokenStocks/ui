@@ -6,9 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DitherField } from '@/components/dither-field';
 import { Body, Display, Num } from '@/components/ui/text';
-import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
-
-const WARM_RAMP = ['#2E1C12', '#8A4020', '#FFB066'] as const;
+import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
 
 export function CorporateActionScreen() {
   const insets = useSafeAreaInsets();
@@ -34,7 +32,7 @@ export function CorporateActionScreen() {
             <DitherField
               width={width - 24}
               height={104}
-              ramp={WARM_RAMP}
+              ramp={ramps.corporateAction}
               bg="#12100E"
               speed={0.1}
               levels={5}

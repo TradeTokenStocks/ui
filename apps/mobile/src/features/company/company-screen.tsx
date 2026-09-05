@@ -17,16 +17,9 @@ import {
   type Representation,
 } from '@tradetoken/domain';
 import { companyDetails } from '@tradetoken/domain/fixtures';
-import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
+import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
 
 const FIELD_HEIGHT = 340;
-
-/**
- * The violet-leaning ramp this screen uses instead of the home screen's blue.
- * Both representations shown here are executable, and violet is the second
- * executable tint, so the ambient field picks it up.
- */
-const RAMP = ['#141A3C', '#303385', '#8A78FF'] as const;
 
 const TINTS: Record<Representation['tint'], { color: string; glow?: string }> = {
   cobalt: { color: palette.cobalt, glow: 'rgba(94,124,255,0.5)' },
@@ -63,7 +56,7 @@ export function CompanyScreen() {
         <DitherField
           width={width}
           height={FIELD_HEIGHT}
-          ramp={RAMP}
+          ramp={ramps.company}
           speed={0.04}
           levels={5}
           contour={0.5}
@@ -159,7 +152,7 @@ export function CompanyScreen() {
         <PrimaryButton
           label={`Allocate ${executable} executable`}
           onPress={() =>
-            router.push({ pathname: '/strategy/new', params: { ticker: company.ticker } })
+            router.push({ pathname: '/strategy/type', params: { ticker: company.ticker } })
           }
           accessibilityHint="Only onchain balances can be allocated. Brokerage holdings are excluded."
         />

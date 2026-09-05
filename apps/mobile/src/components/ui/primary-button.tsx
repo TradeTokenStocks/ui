@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
-import { Button, Host } from '@expo/ui';
+import { Button, Host, Text } from '@expo/ui';
 
 import { palette, radius } from '@/theme/tokens';
 
@@ -45,12 +45,14 @@ export function PrimaryButton({
       style={style}>
       <Host matchContents={{ vertical: true }} seedColor={palette.cobalt} style={{ width: '100%' }}>
         <Button
-          label={label}
           onPress={onPress}
           disabled={disabled}
           variant="filled"
-          style={{ ...styles.button, width }}
-        />
+          style={{ ...styles.button, width }}>
+          <Text numberOfLines={1} textStyle={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>
+            {label}
+          </Text>
+        </Button>
       </Host>
     </View>
   );

@@ -92,6 +92,14 @@ export const ramps = {
   corporateAction: ['#2E1C12', '#8A4020', '#FFB066'],
   /** Delegation. Violet, matching the scoped-permission accent. */
   delegation: ['#171135', '#3f2f8b', '#8E63FF'],
+  /** Connections. Teal — the only place the product talks about data pipes. */
+  connections: ['#0E2A33', '#1A5C6E', '#5AD5D0'],
+  /** Wallet and security. Deep indigo: colder and more locked-down than cobalt. */
+  wallet: ['#131233', '#2A2B7A', '#6E6BFF'],
+  /** Funding. Green, because this is the one screen about money arriving. */
+  funding: ['#0E2A1E', '#1C6440', '#4ADE8B'],
+  /** Sign-in. Cobalt, wider and dimmer than the portfolio field. */
+  signIn: ['#101838', '#243180', '#5E7CFF'],
 } as const satisfies Record<string, readonly [string, string, string]>;
 
 export const radius = {

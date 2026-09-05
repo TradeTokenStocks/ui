@@ -91,3 +91,38 @@ export type CompanyDetail = {
 
 /** How wide a band is allowed to drift before it stops earning. */
 export type DriftRisk = 'High' | 'Moderate' | 'Low';
+
+/**
+ * The Aqua primitive a strategy is built on. Only `concentrated` has a
+ * working builder today — `pegged` (same-stock, two representations) is the
+ * hackathon's stretch goal, and `xyk` (full-range) isn't planned for this
+ * product: a stock/USDC pair doesn't hold near a fixed ratio, which is why
+ * `pegged` is used for same-stock pairs instead of stock/USDC ones.
+ */
+export type StrategyMechanism = 'concentrated' | 'pegged' | 'xyk';
+
+/**
+ * A single open concentrated-band strategy, as shown in the Strategies list
+ * and its detail screen. A user can have zero, one, or several of these open
+ * at once — the list is keyed by `ticker`, so routing to a detail screen is
+ * always `/strategy/[ticker]`.
+ */
+export type StrategySummary = {
+  ticker: string;
+  mechanism: StrategyMechanism;
+  openDays: number;
+  depositedUsd: number;
+  bandPct: number;
+  /** Both derived from spot at `bandPct`: spot × (1 − pct) and × (1 + pct). */
+  lowerUsd: number;
+  upperUsd: number;
+  spotUsd: number;
+  fills: number;
+  feesEarnedUsd: number;
+  /** Share of the position currently held as stock rather than USDC. */
+  stockPct: number;
+  timeInBandPct: number;
+  gainVsDepositPct: number;
+  feeTierPct: number;
+  networkFeeUsd: number;
+};

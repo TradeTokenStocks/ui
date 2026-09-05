@@ -1,7 +1,6 @@
-import { useMemo } from 'react';
 import { Canvas, Fill, Shader, Skia, useClock } from '@shopify/react-native-skia';
 import { useDerivedValue } from 'react-native-reanimated';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { ditherRamp, palette } from '@/theme/tokens';
 
@@ -150,14 +149,11 @@ export function DitherField({
   contour = 0.55,
 }: Props) {
   const clock = useClock();
-  const source = useMemo(() => effect(), []);
+  const source = effect();
   // Colour parsing uses String/Array helpers that live on the JS runtime.
   // Precompute these values here rather than synchronously calling `rgb`
   // from Reanimated's UI worklet below.
-  const colors = useMemo(
-    () => ({ r1: rgb(ramp[0]), r2: rgb(ramp[1]), r3: rgb(ramp[2]), cbg: rgb(bg) }),
-    [bg, ramp],
-  );
+  const colors = { r1: rgb(ramp[0]), r2: rgb(ramp[1]), r3: rgb(ramp[2]), cbg: rgb(bg) };
 
   const uniforms = useDerivedValue(() => ({
     u_res: [width, height],
@@ -184,12 +180,3 @@ export function DitherField({
     </Canvas>
   );
 }
-
-/**
- * The field is drawn behind content that has to stay readable, so the design
- * lays a bottom-anchored fade over it. Kept next to the shader because the two
- * are never used apart.
- */
-export const ditherFadeStyle = StyleSheet.create({
-  fade: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-});
