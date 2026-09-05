@@ -1,0 +1,5 @@
+# Expo/React Native autolinking resolves native modules by walking real directories,
+# so Bun's default isolated linker (a symlink farm under node_modules/.bun) produces
+# duplicate installs of expo, @expo/ui and friends. Hoisting keeps one copy per version.
+[install]
+linker = "hoisted"
