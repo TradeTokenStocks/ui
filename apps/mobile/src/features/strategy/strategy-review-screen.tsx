@@ -47,11 +47,15 @@ export function StrategyReviewScreen() {
     timer.current = null;
   };
 
+  // Unmount only. Without the empty dependency array this runs after every
+  // render, so the first progress tick's re-render cleans up the interval that
+  // produced it and the hold freezes a frame in.
   useEffect(
     () => () => {
       clearHoldTimer();
       if (navigateTimer.current) clearTimeout(navigateTimer.current);
     },
+    [],
   );
 
   const startHolding = () => {
