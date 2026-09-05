@@ -14,8 +14,23 @@ import {
   InstrumentSans_700Bold,
 } from '@expo-google-fonts/instrument-sans';
 import { GeistMono_400Regular, GeistMono_500Medium } from '@expo-google-fonts/geist-mono';
+import { PrivyProvider } from '@privy-io/expo';
 
 import { palette } from '@/theme/tokens';
+
+function requirePublicEnv(value: string | undefined, name: string) {
+  if (!value) throw new Error(`Missing ${name}`);
+  return value;
+}
+
+const privyAppId = requirePublicEnv(
+  process.env.EXPO_PUBLIC_PRIVY_APP_ID,
+  'EXPO_PUBLIC_PRIVY_APP_ID',
+);
+const privyClientId = requirePublicEnv(
+  process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID,
+  'EXPO_PUBLIC_PRIVY_CLIENT_ID',
+);
 
 SplashScreen.preventAutoHideAsync();
 
@@ -45,7 +60,14 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <>
+    <PrivyProvider
+      appId={privyAppId}
+      clientId={privyClientId}
+      config={{
+        embedded: {
+          ethereum: { createOnLogin: 'users-without-wallets' },
+        },
+      }}>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -53,6 +75,6 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: palette.bg },
         }}
       />
-    </>
+    </PrivyProvider>
   );
 }
