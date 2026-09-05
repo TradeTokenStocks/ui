@@ -144,6 +144,9 @@ export function CompanyScreen() {
         />
         <PrimaryButton
           label={`Allocate ${company.executableTotal} executable`}
+          onPress={() =>
+            router.push({ pathname: '/strategy/new', params: { ticker: company.ticker } })
+          }
           accessibilityHint="Only onchain balances can be allocated. Brokerage holdings are excluded."
         />
         {/* Stated rather than implied. The button's figure is smaller than the

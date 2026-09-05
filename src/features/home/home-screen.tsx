@@ -9,6 +9,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 
 import { DitherField } from '@/components/dither-field';
 import { BottomNav, type NavKey } from '@/components/ui/bottom-nav';
@@ -45,6 +46,11 @@ export function HomeScreen() {
 
   const navHeight = 56 + insets.bottom + 26;
 
+  const selectTab = (next: NavKey) => {
+    setTab(next);
+    if (next === 'strategies') router.navigate('/strategy/nvda');
+  };
+
   return (
     <View style={styles.root}>
       {/* Ambient field. Sits behind the balance only — it stops well above the
@@ -62,7 +68,11 @@ export function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: navHeight + space.xl }}>
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-          <View style={styles.identity}>
+          <Pressable
+            onPress={() => router.push('/wallet')}
+            accessibilityRole="button"
+            accessibilityLabel="Open wallet and security"
+            style={({ pressed }) => [styles.identity, pressed && { opacity: 0.65 }]}>
             <LinearGradient
               colors={[palette.cobalt, palette.violet]}
               start={{ x: 0.1, y: 0 }}
@@ -75,15 +85,19 @@ export function HomeScreen() {
             <Body size={14.5} weight="semibold">
               {account.name}
             </Body>
-          </View>
+          </Pressable>
 
           {account.isSandbox && (
-            <View style={styles.chip}>
+            <Pressable
+              onPress={() => router.push('/connections')}
+              accessibilityRole="button"
+              accessibilityLabel="Open sandbox connections"
+              style={({ pressed }) => [styles.chip, pressed && { opacity: 0.65 }]}>
               <PulseDot />
               <Body size={11} weight="semibold" color={ink.secondary}>
                 Sandbox
               </Body>
-            </View>
+            </Pressable>
           )}
         </View>
 
@@ -143,8 +157,11 @@ export function HomeScreen() {
 
         <View style={styles.panel}>
           <View style={styles.panelSpecular} />
-          {segment === 'holdings' ? (
-            <>
+          <Animated.View
+            key={segment}
+            entering={FadeIn.duration(150).reduceMotion(ReduceMotion.System)}>
+            {segment === 'holdings' ? (
+              <>
               <View style={styles.panelHeader}>
                 <Body size={14.5} weight="semibold">
                   By company
@@ -156,14 +173,15 @@ export function HomeScreen() {
               {companies.map((company) => (
                 <CompanyRow key={company.name} company={company} />
               ))}
-            </>
-          ) : (
-            <View style={styles.ledger}>
-              {(segment === 'events' ? events : activity).map((row) => (
-                <LedgerItem key={row.id} row={row} />
-              ))}
-            </View>
-          )}
+              </>
+            ) : (
+              <View style={styles.ledger}>
+                {(segment === 'events' ? events : activity).map((row) => (
+                  <LedgerItem key={row.id} row={row} />
+                ))}
+              </View>
+            )}
+          </Animated.View>
         </View>
       </ScrollView>
 
@@ -176,7 +194,11 @@ export function HomeScreen() {
         style={[styles.navFade, { height: navHeight + 60 }]}
       />
       <View style={[styles.nav, { bottom: insets.bottom + 20 }]}>
-        <BottomNav value={tab} onChange={setTab} onCreate={() => {}} />
+        <BottomNav
+          value={tab}
+          onChange={selectTab}
+          onCreate={() => router.push({ pathname: '/strategy/new', params: { ticker: 'NVDA' } })}
+        />
       </View>
     </View>
   );
@@ -233,6 +255,7 @@ function LedgerItem({ row }: { row: LedgerRow }) {
   const onchain = row.provenance === 'onchain';
   return (
     <Pressable
+      onPress={row.id === 'nvda-split' ? () => router.push('/events/nvda-split') : undefined}
       style={({ pressed }) => [styles.ledgerRow, pressed && { backgroundColor: fill.press }]}
       accessibilityRole="button"
       accessibilityLabel={`${row.title}. ${row.meta}. ${row.amount}, ${row.time}. ${
