@@ -10,6 +10,7 @@ import { wagmiConfig } from '@/lib/wagmi';
 import { WagmiProvider } from '@privy-io/wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
+import { WagmiProvider as StandardWagmiProvider } from 'wagmi';
 
 /**
  * Web uses `@privy-io/react-auth`. The React Native SDK is iOS/Android only and
@@ -35,7 +36,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
  */
 function PrivyGate({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
-  if (!privyAppId) return <>{children}</>;
+  if (!privyAppId) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <StandardWagmiProvider config={wagmiConfig}>
+          {children}
+        </StandardWagmiProvider>
+      </QueryClientProvider>
+    )
+
+  };
 
   return (
     <PrivyProvider

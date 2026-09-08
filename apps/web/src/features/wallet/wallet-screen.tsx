@@ -1,25 +1,41 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { Check, Copy } from 'lucide-react';
 import { formatUsd } from '@tradetoken/domain';
 import { approvalThresholdUsd, wallet } from '@tradetoken/domain/fixtures';
+import { Check, Copy } from 'lucide-react';
+import Link from 'next/link';
+import { useState } from 'react';
 
 import { Chip, Display, Num, Panel, SandboxNote, SectionLabel } from '@/components/primitives';
 import { ScreenField } from '@/components/screen-field';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { useChains, useConnection, useSwitchChain } from 'wagmi';
+
+import {
+  defaultChain
+} from '@/lib/chains';
 
 export function WalletScreen() {
   const [copied, setCopied] = useState(false);
   const [passkey, setPasskey] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
+  const [sandboxChainId, setSandboxChainId] = useState<number>(defaultChain.id);
+
+  const { address: liveAddress, isConnected, chain } = useConnection();
+  const chains = useChains();
+  const { mutate: switchChain } = useSwitchChain();
+
+  const activeAddress = isConnected && liveAddress ? liveAddress : wallet.address;
+  const shortAddress = `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}`;
+  const currentChainId = isConnected && chain?.id ? chain.id : sandboxChainId;
+  const currentChain = chains.find((c) => c.id === currentChainId) ?? defaultChain;
+  const activeChainName = currentChain.name;
 
   const copyAddress = async () => {
     try {
-      await navigator.clipboard.writeText(wallet.address);
+      await navigator.clipboard.writeText(activeAddress);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -43,15 +59,40 @@ export function WalletScreen() {
       <div className="specular relative overflow-hidden rounded-xl bg-gradient-to-br from-cobalt to-cobalt-deep p-6 shadow-[0_16px_50px_-16px_rgba(52,72,220,0.65)]">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <Display className="text-2xl text-white">{wallet.short}</Display>
-            <p className="mt-1 text-[12px] text-white/70">{wallet.chain} · embedded wallet</p>
+            <Display className="text-2xl text-white">{shortAddress}</Display>
+            <p className="mt-1 text-[12px] text-white/70">{activeChainName} · embedded wallet</p>
           </div>
           <span className="rounded-pill border border-white/25 bg-white/10 px-2.5 py-1 text-[10.5px] font-semibold text-white">
             Self-custody
           </span>
         </div>
 
-        <Num className="mt-5 block break-all text-[11px] text-white/60">{wallet.address}</Num>
+        <Num className="mt-5 block break-all text-[11px] text-white/60">{activeAddress}</Num>
+        <div className='mt-4 flex flex-wrap gap-2'>
+          {chains.map((c) => {
+            const isCurrent = c.id === currentChainId;
+            return (
+
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  if (isConnected) {
+                    switchChain({ chainId: c.id });
+                  }
+                  else {
+                    setSandboxChainId(c.id);
+                  }
+                }}
+                className={`rounded-full px-3 py-1 text-[11px] font-medium transition-all ${isCurrent
+                  ? 'bg-white text-black font-semibold shadow-sm'
+                  : 'border border-white/20 bg-white/10 text-white/80 hover:bg-white/20'
+                  }`}
+              >{c.name}</button>
+            )
+          })}
+
+        </div>
 
         <div className="mt-5 flex flex-wrap gap-2.5">
           <Button variant="secondary" onClick={copyAddress}>
