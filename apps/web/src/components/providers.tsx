@@ -3,8 +3,13 @@
 import { PrivyProvider } from '@privy-io/react-auth';
 
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { SessionProvider } from '@/lib/session';
+import { defaultChain, supportedChains } from '@/lib/chains';
 import { privyAppId, privyClientId } from '@/lib/privy';
+import { SessionProvider } from '@/lib/session';
+import { wagmiConfig } from '@/lib/wagmi';
+import { WagmiProvider } from '@privy-io/wagmi';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
 
 /**
  * Web uses `@privy-io/react-auth`. The React Native SDK is iOS/Android only and
@@ -29,6 +34,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
  * reports the missing configuration on its own screen instead.
  */
 function PrivyGate({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
   if (!privyAppId) return <>{children}</>;
 
   return (
@@ -36,6 +42,8 @@ function PrivyGate({ children }: { children: React.ReactNode }) {
       appId={privyAppId}
       {...(privyClientId ? { clientId: privyClientId } : {})}
       config={{
+        supportedChains: [...supportedChains],
+        defaultChain,
         loginMethods: ['email'],
         embeddedWallets: {
           ethereum: { createOnLogin: 'users-without-wallets' },
@@ -46,7 +54,11 @@ function PrivyGate({ children }: { children: React.ReactNode }) {
           landingHeader: 'Sign in to TradeTokenStocks',
         },
       }}>
-      {children}
+      <QueryClientProvider client={queryClient}>
+        <WagmiProvider config={wagmiConfig}>
+          {children}
+        </WagmiProvider>
+      </QueryClientProvider>
     </PrivyProvider>
   );
 }
