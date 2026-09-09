@@ -1,3 +1,5 @@
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   Pressable,
@@ -6,15 +8,15 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import type { EdgeInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
+import type { EdgeInsets } from 'react-native-safe-area-context';
 
 import { DitherField } from '@/components/dither-field';
 import { PulseDot } from '@/components/ui/pulse-dot';
 import { Segmented, type Segment } from '@/components/ui/segmented';
 import { Body, Display, Num } from '@/components/ui/text';
+import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
+import { usePrivy } from '@privy-io/expo';
 import {
   formatLedgerAmount,
   formatNumber,
@@ -33,7 +35,6 @@ import {
   hasUnreviewedEvents,
   totals,
 } from '@tradetoken/domain/fixtures';
-import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
 
 /** Height of the dither field at the top of the screen. */
 const FIELD_HEIGHT = 380;
@@ -52,6 +53,13 @@ const SEGMENTS: Segment[] = [
 export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
   const { width } = useWindowDimensions();
   const [segment, setSegment] = useState('holdings');
+  const {user} = usePrivy();
+
+  const emailAccount = user?.linked_accounts?.find((acc) => acc.type === 'email');
+  const userEmail = emailAccount?.type === 'email' ? emailAccount.address : null;
+
+  const displayName = userEmail ? (userEmail.split('@')[0] ?? 'User') : 'Sign in';
+  const avatarInitial = displayName[0]?.toUpperCase();
 
   const navHeight = 56 + insets.bottom + 26;
   const exposure = splitUsd(totals.exposureUsd);
@@ -84,11 +92,11 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
               end={{ x: 0.9, y: 1 }}
               style={styles.avatar}>
               <Body size={12} weight="semibold" color="#fff">
-                {account.initial}
+                {avatarInitial}
               </Body>
             </LinearGradient>
             <Body size={14.5} weight="semibold">
-              {account.name}
+              {displayName}
             </Body>
           </Pressable>
 

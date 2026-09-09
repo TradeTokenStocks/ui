@@ -1,30 +1,36 @@
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BackButton } from '@/components/ui/back-button';
 import { DitherField } from '@/components/dither-field';
-import { Body, Display } from '@/components/ui/text';
+import { BackButton } from '@/components/ui/back-button';
 import { SecondaryButton } from '@/components/ui/secondary-button';
+import { Body, Display } from '@/components/ui/text';
 import { Toggle } from '@/components/ui/toggle';
-import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
 import { goBackOrHome } from '@/navigation/go-back';
+import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
+import { useEmbeddedEthereumWallet, usePrivy } from '@privy-io/expo';
 
 const ADDRESS = '0x7A4C18D2F37e65a9C3b92E49A8107D459B2C9E21';
 const FIELD_HEIGHT = 240;
 
 export function WalletSecurityScreen() {
   const insets = useSafeAreaInsets();
+  const {wallets} = useEmbeddedEthereumWallet();
+  const {user, logout} = usePrivy();
+  const embeddedWallet = wallets[0];
+  const activeAddress = embeddedWallet?.address ?? ADDRESS;
+  const shortAddress = `${activeAddress.slice(0,6)}...${activeAddress.slice(-4)}`;
   const { width } = useWindowDimensions();
   const [copied, setCopied] = useState(false);
   const [passkey, setPasskey] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
 
   const copyAddress = async () => {
-    await Clipboard.setStringAsync(ADDRESS);
+    await Clipboard.setStringAsync(activeAddress);
     setCopied(true);
   };
 
@@ -51,13 +57,17 @@ export function WalletSecurityScreen() {
             <Body size={18} weight="bold" color="#fff">B</Body>
           </LinearGradient>
           <View style={styles.walletCopy}>
-            <Display size={22}>0x7A4C…9E21</Display>
+            <Display size={22}>{shortAddress}</Display>
             <Body size={12} color="rgba(255,255,255,0.66)" style={styles.walletMeta}>Base · embedded wallet</Body>
           </View>
           <View style={styles.custody}><Body size={10.5} weight="semibold" color="#fff">Self-custody</Body></View>
           <View style={styles.walletActions}>
             <SmallButton label={copied ? 'Copied' : 'Copy address'} onPress={copyAddress} />
             <SmallButton label="Add funds" onPress={() => router.push('/funding')} filled />
+          </View>
+          {/* {Add Sign in Button} */}
+          <View style={{marginTop: 10}}>
+            {user ? (<SecondaryButton label='Sign out' onPress={logout}/>) : (<SecondaryButton label='Sign in with Privy' onPress={() => router.push('/sign-in')}/>)}
           </View>
         </View>
 

@@ -1,21 +1,22 @@
-import { useEffect } from 'react';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useFonts } from 'expo-font';
 import {
   BricolageGrotesque_600SemiBold,
   BricolageGrotesque_700Bold,
 } from '@expo-google-fonts/bricolage-grotesque';
+import { GeistMono_400Regular, GeistMono_500Medium } from '@expo-google-fonts/geist-mono';
 import {
   InstrumentSans_400Regular,
   InstrumentSans_500Medium,
   InstrumentSans_600SemiBold,
   InstrumentSans_700Bold,
 } from '@expo-google-fonts/instrument-sans';
-import { GeistMono_400Regular, GeistMono_500Medium } from '@expo-google-fonts/geist-mono';
 import { PrivyProvider } from '@privy-io/expo';
+import { useFonts } from 'expo-font';
+import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 
+import { supportedChains } from '@/lib/chains';
 import { palette } from '@/theme/tokens';
 
 function requirePublicEnv(value: string | undefined, name: string) {
@@ -63,6 +64,7 @@ export default function RootLayout() {
     <PrivyProvider
       appId={privyAppId}
       clientId={privyClientId}
+      supportedChains={[...supportedChains]}
       config={{
         embedded: {
           ethereum: { createOnLogin: 'users-without-wallets' },
