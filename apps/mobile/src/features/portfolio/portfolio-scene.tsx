@@ -53,13 +53,14 @@ const SEGMENTS: Segment[] = [
 export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
   const { width } = useWindowDimensions();
   const [segment, setSegment] = useState('holdings');
-  const {user} = usePrivy();
+  const { user } = usePrivy();
 
   const emailAccount = user?.linked_accounts?.find((acc) => acc.type === 'email');
   const userEmail = emailAccount?.type === 'email' ? emailAccount.address : null;
 
-  const displayName = userEmail ? (userEmail.split('@')[0] ?? 'User') : 'Sign in';
-  const avatarInitial = displayName[0]?.toUpperCase();
+  const isSignedIn = Boolean(user);
+  const displayName = userEmail ? (userEmail.split('@')[0] ?? 'User') : 'User';
+  const avatarInitial = displayName[0]?.toUpperCase() ?? 'U';
 
   const navHeight = 56 + insets.bottom + 26;
   const exposure = splitUsd(totals.exposureUsd);
@@ -82,22 +83,43 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
         contentContainerStyle={{ paddingBottom: navHeight + space.xl }}>
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <Pressable
-            onPress={() => router.push('/wallet')}
+            onPress={() => router.push(isSignedIn ? '/wallet' : '/sign-in')}
             accessibilityRole="button"
-            accessibilityLabel="Open wallet and security"
-            style={({ pressed }) => [styles.identity, pressed && { opacity: 0.65 }]}>
-            <LinearGradient
-              colors={[palette.cobalt, palette.violet]}
-              start={{ x: 0.1, y: 0 }}
-              end={{ x: 0.9, y: 1 }}
-              style={styles.avatar}>
-              <Body size={12} weight="semibold" color="#fff">
-                {avatarInitial}
-              </Body>
-            </LinearGradient>
-            <Body size={14.5} weight="semibold">
-              {displayName}
+            accessibilityLabel={isSignedIn ? 'Open wallet and security' : 'Sign in and create your wallet'}
+            style={({ pressed }) => [
+              styles.identity,
+              !isSignedIn && styles.signInIdentity,
+              pressed && styles.identityPressed,
+            ]}>
+            {isSignedIn ? (
+              <LinearGradient
+                colors={[palette.cobalt, palette.violet]}
+                start={{ x: 0.1, y: 0 }}
+                end={{ x: 0.9, y: 1 }}
+                style={styles.avatar}>
+                <Body size={12} weight="semibold" color="#fff">
+                  {avatarInitial}
+                </Body>
+              </LinearGradient>
+            ) : (
+              <LinearGradient
+                colors={[palette.cobalt, palette.violet]}
+                start={{ x: 0.1, y: 0 }}
+                end={{ x: 0.9, y: 1 }}
+                style={styles.signInMark}
+                accessible={false}>
+                <View style={styles.personHead} />
+                <View style={styles.personShoulders} />
+              </LinearGradient>
+            )}
+            <Body size={14} weight="semibold" color={isSignedIn ? ink.primary : palette.cobaltText}>
+              {isSignedIn ? displayName : 'Sign in'}
             </Body>
+            {!isSignedIn && (
+              <Body size={17} weight="medium" color={palette.cobaltText} style={styles.signInChevron}>
+                ›
+              </Body>
+            )}
           </Pressable>
 
           {account.isSandbox && (
@@ -107,7 +129,7 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
               accessibilityLabel="Open sandbox connections"
               style={({ pressed }) => [styles.chip, pressed && { opacity: 0.65 }]}>
               <PulseDot />
-              <Body size={11} weight="semibold" color={ink.secondary}>
+              <Body size={11.5} weight="semibold" color={ink.primary}>
                 Sandbox
               </Body>
             </Pressable>
@@ -327,14 +349,49 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  identityPressed: { opacity: 0.65, transform: [{ scale: 0.98 }] },
+  signInIdentity: {
+    gap: 8,
+    minHeight: 38,
+    paddingLeft: 5,
+    paddingRight: 11,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(94,124,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(141,162,255,0.3)',
+    borderRadius: radius.pill,
+  },
   avatar: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  signInMark: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  personHead: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#fff',
+    marginBottom: 2,
+  },
+  personShoulders: {
+    width: 13,
+    height: 6,
+    borderTopLeftRadius: 7,
+    borderTopRightRadius: 7,
+    backgroundColor: '#fff',
+  },
+  signInChevron: { marginLeft: -2, marginTop: -1 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    backgroundColor: fill.muted,
+    minHeight: 38,
+    backgroundColor: 'rgba(10,11,13,0.84)',
     borderWidth: 1,
-    borderColor: stroke.raised,
+    borderColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: radius.pill,
