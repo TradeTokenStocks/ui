@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,41 +15,95 @@ import { goBackOrHome } from '@/navigation/go-back';
 import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
 import { useEmbeddedEthereumWallet, usePrivy } from '@privy-io/expo';
 
-const ADDRESS = '0x7A4C18D2F37e65a9C3b92E49A8107D459B2C9E21';
 const FIELD_HEIGHT = 240;
+
+function parseChainId(value: unknown) {
+  if (typeof value === 'number') return value;
+  if (typeof value !== 'string') return null;
+
+  const chainId = Number.parseInt(value, value.startsWith('0x') ? 16 : 10);
+  return Number.isNaN(chainId) ? null : chainId;
+}
 
 export function WalletSecurityScreen() {
   const insets = useSafeAreaInsets();
   const {wallets} = useEmbeddedEthereumWallet();
   const {user, logout} = usePrivy();
   const embeddedWallet = wallets[0];
-  const activeAddress = embeddedWallet?.address ?? ADDRESS;
-  const shortAddress = `${activeAddress.slice(0,6)}...${activeAddress.slice(-4)}`;
+  const activeAddress = embeddedWallet?.address;
+  const shortAddress = activeAddress
+    ? `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}`
+    : user
+      ? 'Creating wallet…'
+      : 'Sign in to create wallet';
   const { width } = useWindowDimensions();
   const [copied, setCopied] = useState(false);
   const [passkey, setPasskey] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
   const [activeChainId, setActiveChainId] = useState<number>(defaultChain.id);
+  const [switchingChainId, setSwitchingChainId] = useState<number | null>(null);
   const activeChain = supportedChains.find((c) => c.id === activeChainId) ?? defaultChain;
 
   const emailAccount = user?.linked_accounts?.find((acc) => acc.type === 'email');
   const userEmail = emailAccount?.type === 'email' ? emailAccount.address : null;
   const userInitial = userEmail ? (userEmail[0]?.toUpperCase() ?? 'W') : 'W';
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncActiveChain = async () => {
+      if (!embeddedWallet) {
+        setActiveChainId(defaultChain.id);
+        return;
+      }
+
+      try {
+        const provider = await embeddedWallet.getProvider();
+        const providerChainId = parseChainId(await provider.request({ method: 'eth_chainId' }));
+
+        if (
+          !cancelled &&
+          providerChainId !== null &&
+          supportedChains.some((chain) => chain.id === providerChainId)
+        ) {
+          setActiveChainId(providerChainId);
+        }
+      } catch (error) {
+        console.warn('Failed to read the active chain:', error);
+      }
+    };
+
+    void syncActiveChain();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [embeddedWallet]);
+
   const copyAddress = async () => {
+    if (!activeAddress) return;
     await Clipboard.setStringAsync(activeAddress);
     setCopied(true);
   };
 
   const handleSwitchChain = async (chainId: number) => {
-    setActiveChainId(chainId);
-    if (embeddedWallet) {
-      try {
-        const provider = await embeddedWallet.getProvider();
-        await provider.request({method: 'wallet_switchEthereumChain', params: [{chainId: `0x${chainId.toString(16)}`}],});
-      } catch (error) {
-        console.warn('Failed to switch chain:', error);
-      }
+    if (!embeddedWallet || switchingChainId !== null || chainId === activeChainId) return;
+
+    setNotice(null);
+    setSwitchingChainId(chainId);
+
+    try {
+      const provider = await embeddedWallet.getProvider();
+      await provider.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: `0x${chainId.toString(16)}` }],
+      });
+      setActiveChainId(chainId);
+    } catch (error) {
+      console.warn('Failed to switch chain:', error);
+      setNotice('Network switch failed. Your wallet remains on the previous network.');
+    } finally {
+      setSwitchingChainId(null);
     }
   };
 
@@ -78,34 +132,49 @@ export function WalletSecurityScreen() {
           <View style={styles.walletCopy}>
             <Display size={22}>{shortAddress}</Display>
             <Body size={12} color="rgba(255,255,255,0.66)" style={styles.walletMeta}>
-              {activeChain.name} · embedded wallet
+              {embeddedWallet
+                ? `${activeChain.name} · embedded wallet`
+                : user
+                  ? 'Provisioning your embedded wallet'
+                  : 'Authentication required'}
             </Body>
           </View>
-          <View style={styles.custody}><Body size={10.5} weight="semibold" color="#fff">Self-custody</Body></View>
-          <View style={styles.chainPills}>
-            {supportedChains.map((c) => {
-              const isCurrent = c.id === activeChainId;
-              const pillLabel = c.name.includes('RobinHood') ? 'Robinhood' : c.name;
-              return (
-                <Pressable
-                  key={c.id}
-                  onPress={() => handleSwitchChain(c.id)}
-                  style={[styles.chainPill, isCurrent && styles.chainPillActive]}>
-                  <Body
-                    size={11.5}
-                    weight="semibold"
-                    color={isCurrent ? palette.cobaltText : ink.tertiary}>
-                    {pillLabel}
-                  </Body>
-                </Pressable>
-              );
-            })}
-          </View>
-          <View style={styles.walletActions}>
-            <SmallButton label={copied ? 'Copied' : 'Copy address'} onPress={copyAddress} />
-            <SmallButton label="Add funds" onPress={() => router.push('/funding')} filled />
-          </View>
-          {/* {Add Sign in Button} */}
+          {embeddedWallet && (
+            <>
+              <View style={styles.custody}><Body size={10.5} weight="semibold" color="#fff">Self-custody</Body></View>
+              <View style={styles.chainPills}>
+                {supportedChains.map((chain) => {
+                  const isCurrent = chain.id === activeChainId;
+                  const isSwitching = chain.id === switchingChainId;
+                  const pillLabel = chain.name.includes('RobinHood') ? 'Robinhood' : chain.name;
+                  return (
+                    <Pressable
+                      key={chain.id}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: switchingChainId !== null, selected: isCurrent }}
+                      disabled={switchingChainId !== null}
+                      onPress={() => handleSwitchChain(chain.id)}
+                      style={[
+                        styles.chainPill,
+                        isCurrent && styles.chainPillActive,
+                        switchingChainId !== null && styles.chainPillDisabled,
+                      ]}>
+                      <Body
+                        size={11.5}
+                        weight="semibold"
+                        color={isCurrent ? palette.cobaltText : ink.tertiary}>
+                        {isSwitching ? 'Switching…' : pillLabel}
+                      </Body>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={styles.walletActions}>
+                <SmallButton label={copied ? 'Copied' : 'Copy address'} onPress={copyAddress} />
+                <SmallButton label="Add funds" onPress={() => router.push('/funding')} filled />
+              </View>
+            </>
+          )}
           <View style={{marginTop: 10}}>
             {user ? (<SecondaryButton label='Sign out' onPress={logout}/>) : (<SecondaryButton label='Sign in with Privy' onPress={() => router.push('/sign-in')}/>)}
           </View>
@@ -180,5 +249,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(141,162,255,0.35)',
     backgroundColor: 'rgba(94,124,255,0.15)',
   },
+  chainPillDisabled: { opacity: 0.65 },
   footer: { lineHeight: 17, textAlign: 'center', marginHorizontal: 14, marginTop: 22 },
 });
