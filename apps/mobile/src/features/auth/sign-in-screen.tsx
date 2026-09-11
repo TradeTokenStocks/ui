@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { useLoginWithEmail } from '@privy-io/expo';
+import { useLoginWithEmail, usePrivy } from '@privy-io/expo';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -31,6 +31,7 @@ function messageFrom(error: unknown) {
 export function SignInScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const {user} = usePrivy();
   const codeInputRef = useRef<TextInput>(null);
   const lastSubmittedCode = useRef('');
   const [step, setStep] = useState<Step>('email');
@@ -45,6 +46,10 @@ export function SignInScreen() {
   const busy = sending || verifying;
   const normalizedEmail = email.trim().toLowerCase();
   const validEmail = /^\S+@\S+\.\S+$/.test(normalizedEmail);
+
+  useEffect(() => {if (user) {
+    router.replace('/');
+  }}, [user]);
 
   useEffect(() => {
     if (step !== 'code' || secondsLeft <= 0) return;
