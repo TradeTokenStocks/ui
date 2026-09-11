@@ -10,6 +10,7 @@ import { BackButton } from '@/components/ui/back-button';
 import { SecondaryButton } from '@/components/ui/secondary-button';
 import { Body, Display } from '@/components/ui/text';
 import { Toggle } from '@/components/ui/toggle';
+import { defaultChain, supportedChains } from '@/lib/chains';
 import { goBackOrHome } from '@/navigation/go-back';
 import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
 import { useEmbeddedEthereumWallet, usePrivy } from '@privy-io/expo';
@@ -28,10 +29,28 @@ export function WalletSecurityScreen() {
   const [copied, setCopied] = useState(false);
   const [passkey, setPasskey] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
+  const [activeChainId, setActiveChainId] = useState<number>(defaultChain.id);
+  const activeChain = supportedChains.find((c) => c.id === activeChainId) ?? defaultChain;
+
+  const emailAccount = user?.linked_accounts?.find((acc) => acc.type === 'email');
+  const userEmail = emailAccount?.type === 'email' ? emailAccount.address : null;
+  const userInitial = userEmail ? (userEmail[0]?.toUpperCase() ?? 'W') : 'W';
 
   const copyAddress = async () => {
     await Clipboard.setStringAsync(activeAddress);
     setCopied(true);
+  };
+
+  const handleSwitchChain = async (chainId: number) => {
+    setActiveChainId(chainId);
+    if (embeddedWallet) {
+      try {
+        const provider = await embeddedWallet.getProvider();
+        await provider.request({method: 'wallet_switchEthereumChain', params: [{chainId: `0x${chainId.toString(16)}`}],});
+      } catch (error) {
+        console.warn('Failed to switch chain:', error);
+      }
+    }
   };
 
   return (
@@ -54,13 +73,34 @@ export function WalletSecurityScreen() {
 
         <View style={styles.walletCard}>
           <LinearGradient colors={[palette.cobalt, palette.violet]} style={styles.walletAvatar}>
-            <Body size={18} weight="bold" color="#fff">B</Body>
+            <Body size={18} weight="bold" color="#fff">{userInitial}</Body>
           </LinearGradient>
           <View style={styles.walletCopy}>
             <Display size={22}>{shortAddress}</Display>
-            <Body size={12} color="rgba(255,255,255,0.66)" style={styles.walletMeta}>Base · embedded wallet</Body>
+            <Body size={12} color="rgba(255,255,255,0.66)" style={styles.walletMeta}>
+              {activeChain.name} · embedded wallet
+            </Body>
           </View>
           <View style={styles.custody}><Body size={10.5} weight="semibold" color="#fff">Self-custody</Body></View>
+          <View style={styles.chainPills}>
+            {supportedChains.map((c) => {
+              const isCurrent = c.id === activeChainId;
+              const pillLabel = c.name.includes('RobinHood') ? 'Robinhood' : c.name;
+              return (
+                <Pressable
+                  key={c.id}
+                  onPress={() => handleSwitchChain(c.id)}
+                  style={[styles.chainPill, isCurrent && styles.chainPillActive]}>
+                  <Body
+                    size={11.5}
+                    weight="semibold"
+                    color={isCurrent ? palette.cobaltText : ink.tertiary}>
+                    {pillLabel}
+                  </Body>
+                </Pressable>
+              );
+            })}
+          </View>
           <View style={styles.walletActions}>
             <SmallButton label={copied ? 'Copied' : 'Copy address'} onPress={copyAddress} />
             <SmallButton label="Add funds" onPress={() => router.push('/funding')} filled />
@@ -127,5 +167,18 @@ const styles = StyleSheet.create({
   settingRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 15, paddingVertical: 12 }, rowBorder: { borderBottomWidth: 1, borderBottomColor: stroke.hairline }, flex: { flex: 1 }, rowMeta: { marginTop: 4, lineHeight: 16 },
   notice: { marginTop: 10, padding: 14, gap: 8, borderRadius: radius.md, backgroundColor: 'rgba(224,163,60,0.08)', borderWidth: 1, borderColor: 'rgba(224,163,60,0.18)' },
   approvalCard: { backgroundColor: palette.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: stroke.hairline, padding: 16 }, approvalTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 }, leading: { lineHeight: 18, marginTop: 7 }, pills: { flexDirection: 'row', gap: 7, marginTop: 16 }, pill: { paddingHorizontal: 11, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: fill.muted, borderWidth: 1, borderColor: stroke.hairline }, pillActive: { borderColor: 'rgba(141,162,255,0.26)', backgroundColor: 'rgba(94,124,255,0.1)' },
+  chainPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 14 },
+  chainPill: {
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    backgroundColor: fill.muted,
+    borderWidth: 1,
+    borderColor: stroke.hairline,
+  },
+  chainPillActive: {
+    borderColor: 'rgba(141,162,255,0.35)',
+    backgroundColor: 'rgba(94,124,255,0.15)',
+  },
   footer: { lineHeight: 17, textAlign: 'center', marginHorizontal: 14, marginTop: 22 },
 });
