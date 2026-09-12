@@ -131,9 +131,18 @@ export function ExposureBar({
           style={{ width: `${observedPct}%` }}
         />
       </div>
+      {/* A zero side is noise, not information — a full bar already says which
+          custody model holds everything. The aria-label above still states both
+          figures, so nothing is lost to a screen reader. */}
       <div aria-hidden className="flex items-center justify-between gap-3">
-        <Num className="text-[10px] font-medium text-cobalt-text">Wallet {onchainPct}%</Num>
-        <Num className="text-[10px] text-ink-faint">Brokerage {observedPct}%</Num>
+        {onchainPct > 0 ? (
+          <Num className="text-[10px] font-medium text-cobalt-text">Wallet {onchainPct}%</Num>
+        ) : null}
+        {observedPct > 0 ? (
+          // `ml-auto` rather than `justify-between`, so dropping the wallet
+          // label does not pull this one across to the left.
+          <Num className="ml-auto text-[10px] text-ink-faint">Brokerage {observedPct}%</Num>
+        ) : null}
       </div>
     </div>
   );
