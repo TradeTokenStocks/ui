@@ -13,7 +13,7 @@ import {
 } from '@tradetoken/domain';
 import { companyDetails, strategies, strategyActivity } from '@tradetoken/domain/fixtures';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
 import { DitherField } from '@/components/dither-field';
 import {
@@ -44,12 +44,8 @@ export function ActiveStrategyScreen({ ticker }: { ticker: string }) {
   const multiplier = company.multiplier ?? 1.0;
   const guardBounds = calculateMultiplierBounds(multiplier, 5);
 
-  const rows = useMemo(
-    () =>
-      (strategyActivity[strategy.ticker] ?? []).filter(
-        (row) => filter === 'all' || row.provenance === filter,
-      ),
-    [filter, strategy.ticker],
+  const rows = (strategyActivity[strategy.ticker] ?? []).filter(
+    (row) => filter === 'all' || row.provenance === filter,
   );
 
   const positionValue = strategy.depositedUsd * (1 + strategy.gainVsDepositPct / 100);
