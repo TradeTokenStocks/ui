@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { usePrivy } from '@privy-io/expo';
 import type { BrokeragePosition } from '@tradetoken/domain';
 
 import { fetchSnapTradeHoldings, snapTradeApiUrl, SnapTradeRequestError } from '@/lib/snaptrade';
 
 /**
- * Observed brokerage holdings for the signed-in user.
+ * Observed brokerage holdings, read once and shared.
  *
- * Deliberately plain state rather than a cache layer: this app reads holdings
- * on one screen, and a daily snapshot behind a pull-to-refresh does not need
- * invalidation rules to stay honest.
+ * Connections and Portfolio both need this figure and must never disagree
+ * about it. On mobile that is not merely tidy: the dock keeps the portfolio
+ * scene mounted across tab switches, so a second independent copy of this state
+ * would never re-read after a brokerage was linked on another tab, and the
+ * portfolio would sit on `$0` until the app restarted.
  */
 export type BrokerageHoldings = {
   connected: boolean;
@@ -37,7 +39,20 @@ const EMPTY = {
   needsReconnect: false,
 } satisfies Omit<BrokerageHoldings, 'refetch'>;
 
+const BrokerageHoldingsContext = createContext<BrokerageHoldings>({ ...EMPTY, refetch: () => {} });
+
 export function useBrokerageHoldings(): BrokerageHoldings {
+  return useContext(BrokerageHoldingsContext);
+}
+
+export function BrokerageHoldingsProvider({ children }: { children: React.ReactNode }) {
+  const value = useLiveBrokerageHoldings();
+  return (
+    <BrokerageHoldingsContext.Provider value={value}>{children}</BrokerageHoldingsContext.Provider>
+  );
+}
+
+function useLiveBrokerageHoldings(): BrokerageHoldings {
   const { user, isReady, getAccessToken } = usePrivy();
   const [state, setState] = useState<Omit<BrokerageHoldings, 'refetch'>>(EMPTY);
   const mounted = useRef(true);

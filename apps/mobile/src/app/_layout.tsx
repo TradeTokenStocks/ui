@@ -16,6 +16,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
+import { BrokerageHoldingsProvider } from '@/features/connections/hooks/use-brokerage-holdings';
 import { supportedChains } from '@/lib/chains';
 import { palette } from '@/theme/tokens';
 
@@ -71,12 +72,14 @@ export default function RootLayout() {
         },
       }}>
       <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: palette.bg },
-        }}
-      />
+      <BrokerageHoldingsProvider>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: palette.bg },
+          }}
+        />
+      </BrokerageHoldingsProvider>
     </PrivyProvider>
   );
 }
