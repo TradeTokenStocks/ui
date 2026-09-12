@@ -1,9 +1,29 @@
 import 'server-only';
 
-type SnapTradeServerConfig = {
+/**
+ * SnapTrade issues two kinds of key, and which one a deployment holds changes
+ * who the brokerage data belongs to:
+ *
+ * - **commercial** — the server registers a SnapTrade user per Privy subject
+ *   and seals that user's secret into a per-user credential. Each person sees
+ *   only the brokerage they linked. This is the only safe shape for anything
+ *   more than one person can reach.
+ * - **personal** — the key *is* a single SnapTrade user. There is nothing to
+ *   register, and every signed-in person reads the key owner's brokerage.
+ *   Useful for a local demo, unsafe for a deployment.
+ *
+ * The mode is explicit and defaults to `commercial` on purpose: a
+ * misconfiguration must fail closed into per-user isolation rather than
+ * silently sharing one person's brokerage with everyone who signs in.
+ */
+export type SnapTradeKeyMode = 'commercial' | 'personal';
+
+export type SnapTradeServerConfig = {
+  mode: SnapTradeKeyMode;
   clientId: string;
   consumerKey: string;
-  credentialKey: Buffer;
+  /** Seals per-user SnapTrade secrets. Present in commercial mode only. */
+  credentialKey: Buffer | null;
   privyAppId: string;
   privyVerificationKey: string;
   webRedirectUrl: string;
@@ -15,20 +35,36 @@ function required(name: string, value: string | undefined): string {
   return value;
 }
 
-export function snapTradeServerConfig(): SnapTradeServerConfig {
-  const encodedKey = required(
+function keyMode(): SnapTradeKeyMode {
+  const declared = process.env.SNAPTRADE_KEY_MODE;
+  if (declared === 'personal' || declared === 'commercial') return declared;
+  if (declared) throw new Error('SNAPTRADE_KEY_MODE must be "commercial" or "personal"');
+  return 'commercial';
+}
+
+function credentialKey(mode: SnapTradeKeyMode): Buffer | null {
+  // A personal key has no per-user secret to seal, so demanding an encryption
+  // key there would only be ceremony.
+  if (mode === 'personal') return null;
+  const encoded = required(
     'SNAPTRADE_CREDENTIAL_ENCRYPTION_KEY',
     process.env.SNAPTRADE_CREDENTIAL_ENCRYPTION_KEY,
   );
-  const credentialKey = Buffer.from(encodedKey, 'base64');
-  if (credentialKey.byteLength !== 32) {
+  const key = Buffer.from(encoded, 'base64');
+  if (key.byteLength !== 32) {
     throw new Error('SNAPTRADE_CREDENTIAL_ENCRYPTION_KEY must be 32 random bytes in base64');
   }
+  return key;
+}
+
+export function snapTradeServerConfig(): SnapTradeServerConfig {
+  const mode = keyMode();
 
   return {
+    mode,
     clientId: required('SNAPTRADE_CLIENT_ID', process.env.SNAPTRADE_CLIENT_ID),
     consumerKey: required('SNAPTRADE_CONSUMER_KEY', process.env.SNAPTRADE_CONSUMER_KEY),
-    credentialKey,
+    credentialKey: credentialKey(mode),
     privyAppId: required('NEXT_PUBLIC_PRIVY_APP_ID', process.env.NEXT_PUBLIC_PRIVY_APP_ID),
     privyVerificationKey: required(
       'PRIVY_VERIFICATION_KEY',
