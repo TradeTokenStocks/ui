@@ -52,8 +52,8 @@ export type HackathonDeployment = LiveHackathonDeployment | PendingHackathonDepl
  * The only file that needs contract addresses when the team deploys.
  *
  * Keep this pending object valid until every address and ABI behavior has been
- * smoke-tested. Switching `status` to `live` enables contract reads and writes
- * in both clients; feature screens must not carry their own addresses.
+ * smoke-tested. Switching `status` to `live` enables the mobile contract path;
+ * feature screens must not carry their own addresses.
  */
 export const hackathonDeployment: HackathonDeployment = {
   status: 'pending',
