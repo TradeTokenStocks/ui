@@ -1,25 +1,27 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import type { EdgeInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
+import type { EdgeInsets } from 'react-native-safe-area-context';
 
-import { BackButton } from '@/components/ui/back-button';
 import { DitherField } from '@/components/dither-field';
+import { BackButton } from '@/components/ui/back-button';
 import { PulseDot } from '@/components/ui/pulse-dot';
 import { Segmented, type Segment } from '@/components/ui/segmented';
 import { Body, Display, Num } from '@/components/ui/text';
+import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
 import {
   bandMarket,
+  calculateMultiplierBounds,
   formatLedgerAmount,
   formatNumber,
   formatPercent,
   formatUsd,
+  resolveCompany,
   resolveStrategy,
   strategyMechanismLabel,
   type LedgerRow,
 } from '@tradetoken/domain';
-import { strategies, strategyActivity } from '@tradetoken/domain/fixtures';
-import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
+import { companyDetails, strategies, strategyActivity } from '@tradetoken/domain/fixtures';
 
 const FILTERS: Segment[] = [
   { key: 'all', label: 'All' },
@@ -49,6 +51,9 @@ type Props = {
 export function StrategyScene({ insets, ticker, standalone = false, onBack }: Props) {
   const { width } = useWindowDimensions();
   const strategy = resolveStrategy(strategies, ticker);
+  const company = resolveCompany(companyDetails, strategy.ticker, 'NVDA');
+  const multiplier = company.multiplier ?? 1.0;
+  const guardBounds = calculateMultiplierBounds(multiplier, 5);
   const [filter, setFilter] = useState('all');
   const [fillCount, setFillCount] = useState<number>(strategy.fills);
   const [feeTotal, setFeeTotal] = useState<number>(strategy.feesEarnedUsd);
@@ -98,11 +103,16 @@ export function StrategyScene({ insets, ticker, standalone = false, onBack }: Pr
               Open {strategy.openDays} days
             </Num>
           </View>
+          <View style={{alignItems: 'flex-end', gap: 5}}>
           <View style={styles.inBandChip}>
             <PulseDot size={12} color="rgba(74,222,139,0.18)" duration={2400} />
             <Body size={11} weight="semibold" color={palette.positive}>
               In band
             </Body>
+            </View>
+            <View style={styles.guardChip}>
+              <Body size={10.5} weight='semibold' color={palette.cobaltText}>Guard · {multiplier === 1 ? '1.000x' : `${multiplier}x`}</Body>
+            </View>
           </View>
         </View>
 
@@ -169,9 +179,10 @@ export function StrategyScene({ insets, ticker, standalone = false, onBack }: Pr
           </View>
 
           <View style={styles.stats}>
-            <Stat label="Fills" value={formatNumber(fillCount)} />
-            <Stat label="Fees earned" value={formatUsd(feeTotal, { digits: 2 })} />
-            <Stat label="Time in band" value={`${strategy.timeInBandPct}%`} />
+            <Stat label="Fills" value={formatNumber(fillCount)} flex={0.65} />
+            <Stat label="Fees" value={formatUsd(feeTotal, { digits: 2 })} flex={0.95} />
+            <Stat label="In band" value={`${strategy.timeInBandPct}%`} flex={0.8}/>
+            <Stat label='Guard' value={`${guardBounds.min.toFixed(2)}x — ${guardBounds.max.toFixed(2)}x`} flex={1.6}  size={14} />
           </View>
         </View>
 
@@ -191,13 +202,13 @@ export function StrategyScene({ insets, ticker, standalone = false, onBack }: Pr
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, flex = 1, size=16.5 }: { label: string; value: string; flex?: number; size? : number }) {
   return (
-    <View style={styles.stat}>
+    <View style={[styles.stat, {flex}]}>
       <Body size={11.5} weight="medium" color={ink.quaternary}>
         {label}
       </Body>
-      <Num size={16.5} weight="medium" style={styles.statValue}>
+      <Num size={size} weight="medium" style={styles.statValue}>
         {value}
       </Num>
     </View>
@@ -247,6 +258,14 @@ const styles = StyleSheet.create({
   },
   headerSub: { marginTop: 1 },
   inBandChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(74,222,139,0.22)', backgroundColor: 'rgba(74,222,139,0.1)' },
+  guardChip: {
+  paddingHorizontal: 9,
+  paddingVertical: 3.5,
+  borderRadius: radius.pill,
+  borderWidth: 1,
+  borderColor: 'rgba(94,124,255,0.26)',
+  backgroundColor: 'rgba(94,124,255,0.1)',
+},
   summary: { paddingHorizontal: space.gutter, marginTop: 26 },
   positionValue: { marginTop: 2 },
   gainRow: { flexDirection: 'row', gap: 9, marginTop: 9 },
