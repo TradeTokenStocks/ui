@@ -1,4 +1,5 @@
 {
   "extends": "@tradetoken/typescript-config/library.json",
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
 }
