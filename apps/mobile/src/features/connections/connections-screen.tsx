@@ -3,12 +3,14 @@ import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { formatNumber, formatSyncedAt, formatUsd } from '@tradetoken/domain';
 
 import { BackButton } from '@/components/ui/back-button';
 import { DitherField } from '@/components/dither-field';
 import { Body, Display, Num } from '@/components/ui/text';
 import { PulseDot } from '@/components/ui/pulse-dot';
 import { SecondaryButton } from '@/components/ui/secondary-button';
+import { useBrokerageHoldings } from '@/features/connections/hooks/use-brokerage-holdings';
 import { fill, ink, palette, radius, ramps, space, stroke } from '@/theme/tokens';
 import { goBackOrHome } from '@/navigation/go-back';
 
@@ -19,6 +21,7 @@ export function ConnectionsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { scenario } = useLocalSearchParams<{ scenario?: string }>();
+  const holdings = useBrokerageHoldings();
   const [expired, setExpired] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [holdingsTime, setHoldingsTime] = useState('18:42 UTC');
@@ -32,7 +35,12 @@ export function ConnectionsScreen() {
     timer.current = setTimeout(() => { setRefreshing(false); setHoldingsTime('Just now'); }, 900);
   };
 
+  // Arriving with a scenario means the simulated portal sent us here, so the
+  // fixture card is what was asked for. Otherwise the card reads the real
+  // sandbox connection.
   const profile = scenarioNames[scenario ?? ''] ?? 'self-directed';
+  const simulated = Boolean(scenario);
+  const repairs = (expired ? 1 : 0) + (holdings.needsReconnect ? 1 : 0);
 
   return (
     <View style={styles.root}>
@@ -46,18 +54,42 @@ export function ConnectionsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 10 }]} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}><BackButton onPress={goBackOrHome} /><Display size={28}>Connections</Display><View style={[styles.statusBadge, !expired && styles.statusHealthy]}><Body size={10.5} weight="semibold" color={expired ? palette.amberBright : palette.positive}>{expired ? '1 needs repair' : 'All healthy'}</Body></View></View>
-        <Body size={12.5} color={ink.tertiary} style={styles.subtitle}>Read-only brokerage data · sandbox fixtures</Body>
+        <View style={styles.header}><BackButton onPress={goBackOrHome} /><Display size={28}>Connections</Display><View style={[styles.statusBadge, repairs === 0 && styles.statusHealthy]}><Body size={10.5} weight="semibold" color={repairs > 0 ? palette.amberBright : palette.positive}>{repairs > 0 ? `${repairs} ${repairs === 1 ? 'needs' : 'need'} repair` : 'All healthy'}</Body></View></View>
+        <Body size={12.5} color={ink.tertiary} style={styles.subtitle}>Read-only brokerage data · SnapTrade sandbox</Body>
 
-        <ConnectionCard title="SnapTrade Sandbox" meta={`Sandbox · ${profile}`} live>
-          <View style={styles.accountRow}><View><Body size={12} weight="semibold">2 accounts</Body><Body size={11} color={ink.tertiary} style={styles.rowMeta}>Positions and activity · simulated</Body></View><Body size={11} weight="semibold" color={palette.positive}>Live</Body></View>
-          <View style={styles.freshness}>
-            <Freshness label="Holdings" value={holdingsTime} meta="last daily sync" />
-            <Freshness label="Transactions" value="3 Sep" meta="fully synced through" />
-          </View>
-          <Body size={11.5} color={ink.tertiary} style={styles.lag}>Holdings refresh daily. Transactions can arrive one business day behind.</Body>
-          <View style={styles.actions}><Action label={refreshing ? 'Syncing…' : 'Refresh holdings'} onPress={refresh} /><Action label="Manage" onPress={() => router.push('/snaptrade-portal')} /></View>
-        </ConnectionCard>
+        {simulated ? (
+          <ConnectionCard title="SnapTrade Sandbox" meta={`Fixture · ${profile}`} live>
+            <View style={styles.accountRow}><View><Body size={12} weight="semibold">2 accounts</Body><Body size={11} color={ink.tertiary} style={styles.rowMeta}>Positions and activity · simulated</Body></View><Body size={11} weight="semibold" color={palette.positive}>Live</Body></View>
+            <View style={styles.freshness}>
+              <Freshness label="Holdings" value={holdingsTime} meta="last daily sync" />
+              <Freshness label="Transactions" value="3 Sep" meta="fully synced through" />
+            </View>
+            <Body size={11.5} color={ink.tertiary} style={styles.lag}>Holdings refresh daily. Transactions can arrive one business day behind.</Body>
+            <View style={styles.actions}><Action label={refreshing ? 'Syncing…' : 'Refresh holdings'} onPress={refresh} /><Action label="Manage" onPress={() => router.push('/snaptrade-portal')} /></View>
+          </ConnectionCard>
+        ) : holdings.needsReconnect ? (
+          <ConnectionCard title="SnapTrade" meta="Access expired">
+            <View style={styles.expiredRow}><View style={styles.warning}><Body size={13} weight="bold" color={palette.amberBright}>!</Body></View><View style={styles.flex}><Body size={12.5} weight="semibold" color={palette.amberBright}>Reconnect required</Body><Body size={11.5} color={ink.tertiary} style={styles.rowMeta}>Holdings stay out of your exposure until access is granted again</Body></View></View>
+            <View style={styles.actions}><Action label="Reconnect" onPress={() => router.push({ pathname: '/snaptrade-portal', params: { mode: 'reconnect' } })} accent /></View>
+          </ConnectionCard>
+        ) : holdings.connected ? (
+          <ConnectionCard title={holdings.institution ?? 'SnapTrade'} meta="Read-only · positions and balances" live>
+            <View style={styles.accountRow}><View><Body size={12} weight="semibold">{formatNumber(holdings.accountCount)} {holdings.accountCount === 1 ? 'account' : 'accounts'}</Body><Body size={11} color={ink.tertiary} style={styles.rowMeta}>{formatNumber(holdings.positions.length)} positions observed</Body></View><Body size={11} weight="semibold" color={palette.positive}>Live</Body></View>
+            <View style={styles.freshness}>
+              <Freshness label="Holdings" value={formatSyncedAt(holdings.syncedAt)} meta="last sync from the brokerage" />
+              <Freshness label="Observed value" value={formatUsd(holdings.totalValueUsd)} meta="cash and positions" />
+            </View>
+            <Body size={11.5} color={ink.tertiary} style={styles.lag}>Holdings refresh daily. Nothing here can settle a fill.</Body>
+            {holdings.error ? <Body size={11.5} color={palette.amberBright} style={styles.lag}>{holdings.error}</Body> : null}
+            <View style={styles.actions}><Action label={holdings.isLoading ? 'Syncing…' : 'Refresh holdings'} onPress={holdings.refetch} /><Action label="Manage" onPress={() => router.push('/snaptrade-portal')} /></View>
+          </ConnectionCard>
+        ) : (
+          <ConnectionCard title="SnapTrade" meta={holdings.isLoading ? 'Checking for a linked brokerage…' : 'No brokerage linked'}>
+            <Body size={11.5} color={ink.tertiary} style={styles.lag}>Link a sandbox brokerage to see traditional holdings beside your onchain ones. Access is read-only: positions and balances, never trading.</Body>
+            {holdings.error ? <Body size={11.5} color={palette.amberBright} style={styles.lag}>{holdings.error}</Body> : null}
+            <View style={styles.actions}><Action label="Connect brokerage" onPress={() => router.push('/snaptrade-portal')} accent /></View>
+          </ConnectionCard>
+        )}
 
         {expired && <ConnectionCard title="Alpaca Paper" meta="Disabled · access expired">
           <View style={styles.expiredRow}><View style={styles.warning}><Body size={13} weight="bold" color={palette.amberBright}>!</Body></View><View style={styles.flex}><Body size={12.5} weight="semibold" color={palette.amberBright}>Reconnect required</Body><Body size={11.5} color={ink.tertiary} style={styles.rowMeta}>Holdings stale from 21 Aug</Body></View></View>
