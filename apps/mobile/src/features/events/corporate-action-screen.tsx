@@ -1,21 +1,22 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DitherField } from '@/components/dither-field';
 import { Body, Display, Num } from '@/components/ui/text';
+import { useSplitRescaled } from '@/features/strategy/split-review-store';
 import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
 
+/**
+ * What happened, not what to do about it: rescaling an affected band is the
+ * strategy owner's call, so it lives on the strategy detail and this feed
+ * only links there.
+ */
 export function CorporateActionScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const [rescaled, setRescaled] = useState(false);
-  const haltedCopy =
-  'Order halted onchain by Swap-VM opcode 24. NVDA multiplier jumped from 1.00x to 10.00x, exceeding your 0.95x — 1.05x guard. Rescaling updates your price band to $16.06 — $19.62 and arms a new 9.50x — 10.50x guard.';
-const rescaledCopy =
-  'Band rescaled to $16.06 — $19.62. Multiplier guard updated to 9.50x — 10.50x (±5%). Safe trading resumed.';
+  const rescaled = useSplitRescaled();
 
   return (
     <View style={styles.root}>
@@ -69,53 +70,31 @@ const rescaledCopy =
               after="10.0000"
               accentAfter
             />
-            <ChangeRow label='Multiplier guard' before='0.95x — 1.05x' after='9.50x — 10.50x' accentAfter={rescaled}/>
             <ChangeRow label="Your exposure" before="236.4 sh" after="2,364 sh" />
           </View>
 
-          <View style={styles.affected}>
-            <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8}}>
-            <Body size={13} weight="semibold">
-              {rescaled ? 'Open strategy updated' : 'One open strategy is affected'}
+          <Pressable
+            onPress={() => router.push('/strategy/nvda')}
+            accessibilityRole="button"
+            accessibilityLabel={`One open strategy affected. ${rescaled ? 'Band rescaled.' : 'Halted, needs review in Strategies.'}`}
+            style={({ pressed }) => [styles.affected, pressed && { backgroundColor: fill.press }]}>
+            <View style={styles.affectedCopy}>
+              <Body size={13} weight="semibold">
+                One open strategy affected
+              </Body>
+              <Num size={12} color={ink.secondary} style={styles.affectedMeta}>
+                {rescaled ? 'Band rescaled · trading resumed' : 'Halted by its guard · review in Strategies'}
+              </Num>
+            </View>
+            <View style={rescaled ? styles.onchainChip : styles.reviewChip}>
+              <Body size={11.5} weight="semibold" color={rescaled ? palette.cobaltText : palette.amber}>
+                {rescaled ? 'Rescaled' : 'Review'}
+              </Body>
+            </View>
+            <Body size={17} color={ink.faint}>
+              ›
             </Body>
-            <View style={rescaled ? styles.onchainChip: styles.reviewChip}>
-              <Body size={11.5} weight='semibold' color={rescaled ? palette.cobaltText: palette.amber}>{rescaled? 'Guard active · 10.00x' : 'Halted onchain by Swap-VM'}</Body>
-            </View>
-            </View>
-            <Num size={12.5} color={ink.secondary} style={styles.affectedCopy}>
-              {rescaled
-                ? rescaledCopy
-                : haltedCopy}
-            </Num>
-            <View style={styles.actions}>
-              <Pressable
-                disabled={rescaled}
-                onPress={() => setRescaled(true)}
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.action,
-                  styles.primaryAction,
-                  pressed && styles.actionPressed,
-                  rescaled && styles.actionComplete,
-                ]}>
-                <LinearGradient
-                  colors={rescaled ? ['#26324F', '#26324F'] : [palette.cobalt, palette.cobaltDeep]}
-                  style={StyleSheet.absoluteFill}
-                />
-                <Body size={14} weight="semibold">
-                  {rescaled ? 'Band rescaled ✓' : 'Rescale band'}
-                </Body>
-              </Pressable>
-              <Pressable
-                onPress={() => router.back()}
-                accessibilityRole="button"
-                style={({ pressed }) => [styles.action, styles.secondaryAction, pressed && styles.actionPressed]}>
-                <Body size={14} weight="semibold">
-                  {rescaled ? 'Done' : 'Not now'}
-                </Body>
-              </Pressable>
-            </View>
-          </View>
+          </Pressable>
         </View>
 
         <View style={styles.dividend}>
@@ -197,14 +176,9 @@ const styles = StyleSheet.create({
   valueCard: { flex: 1, borderRadius: radius.md, borderWidth: 1, borderColor: stroke.hairline, backgroundColor: fill.subtle, padding: 13 },
   valueCardAccent: { borderColor: 'rgba(94,124,255,0.28)', backgroundColor: 'rgba(94,124,255,0.1)' },
   value: { marginTop: 3 },
-  affected: { padding: 18, borderTopWidth: 1, borderTopColor: stroke.hairline, backgroundColor: 'rgba(255,255,255,0.02)' },
-  affectedCopy: { marginTop: 5, lineHeight: 20 },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  action: { flex: 1, overflow: 'hidden', borderRadius: radius.md, paddingVertical: 15, alignItems: 'center', justifyContent: 'center' },
-  primaryAction: { borderWidth: 1, borderColor: stroke.onAccent },
-  secondaryAction: { borderWidth: 1, borderColor: stroke.raised, backgroundColor: fill.muted },
-  actionPressed: { transform: [{ scale: 0.97 }] },
-  actionComplete: { borderColor: 'rgba(74,222,139,0.25)' },
+  affected: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 18, borderTopWidth: 1, borderTopColor: stroke.hairline, backgroundColor: 'rgba(255,255,255,0.02)' },
+  affectedCopy: { flex: 1 },
+  affectedMeta: { marginTop: 3 },
   dividend: { marginHorizontal: 12, marginTop: 12, paddingHorizontal: 16, paddingVertical: 15, borderRadius: 22, borderWidth: 1, borderColor: stroke.hairline, backgroundColor: fill.subtle },
   dividendTitle: { marginTop: 3 },
   dividendCopy: { marginTop: 6, lineHeight: 20 },

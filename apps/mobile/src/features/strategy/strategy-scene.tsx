@@ -17,11 +17,15 @@ import {
   formatPercent,
   formatUsd,
   resolveCompany,
+  rescaleStrategyPrices,
   resolveStrategy,
   strategyMechanismLabel,
   type LedgerRow,
 } from '@tradetoken/domain';
-import { companyDetails, strategies, strategyActivity } from '@tradetoken/domain/fixtures';
+import { companyDetails, nvdaSplit, strategies, strategyActivity } from '@tradetoken/domain/fixtures';
+
+import { SplitReviewPanel } from './split-review-panel';
+import { useSplitRescaled } from './split-review-store';
 
 const FILTERS: Segment[] = [
   { key: 'all', label: 'All' },
@@ -50,16 +54,25 @@ type Props = {
  */
 export function StrategyScene({ insets, ticker, standalone = false, onBack }: Props) {
   const { width } = useWindowDimensions();
-  const strategy = resolveStrategy(strategies, ticker);
-  const company = resolveCompany(companyDetails, strategy.ticker, 'NVDA');
-  const multiplier = company.multiplier ?? 1.0;
+  const signedStrategy = resolveStrategy(strategies, ticker);
+  const company = resolveCompany(companyDetails, signedStrategy.ticker, 'NVDA');
+  const splitAffected = signedStrategy.ticker === nvdaSplit.ticker;
+  const splitRescaled = useSplitRescaled();
+  // Once rescaled, the band and spot on this page read in post-split prices.
+  const strategy = splitAffected && splitRescaled
+    ? rescaleStrategyPrices(signedStrategy, nvdaSplit.multiplierAfter / nvdaSplit.multiplierBefore)
+    : signedStrategy;
+  const halted = splitAffected && !splitRescaled;
+  const multiplier = splitAffected && splitRescaled ? nvdaSplit.multiplierAfter : (company.multiplier ?? 1.0);
   const guardBounds = calculateMultiplierBounds(multiplier, 5);
   const [filter, setFilter] = useState('all');
   const [fillCount, setFillCount] = useState<number>(strategy.fills);
   const [feeTotal, setFeeTotal] = useState<number>(strategy.feesEarnedUsd);
   const [stockPct, setStockPct] = useState<number>(strategy.stockPct);
 
+  // A halted band takes no fills, so the live simulation pauses with it.
   useEffect(() => {
+    if (halted) return;
     const timer = setInterval(() => {
       const buying = Math.random() > 0.5;
       setFillCount((value) => value + 1);
@@ -67,7 +80,7 @@ export function StrategyScene({ insets, ticker, standalone = false, onBack }: Pr
       setStockPct((value) => Math.max(24, Math.min(56, value + (buying ? 1 : -1))));
     }, 3600);
     return () => clearInterval(timer);
-  }, []);
+  }, [halted]);
 
   const rows = (strategyActivity[strategy.ticker] ?? []).filter(
     (row) => filter === 'all' || row.provenance === filter,
@@ -104,15 +117,25 @@ export function StrategyScene({ insets, ticker, standalone = false, onBack }: Pr
             </Num>
           </View>
           <View style={{alignItems: 'flex-end', gap: 5}}>
-          <View style={styles.inBandChip}>
-            <PulseDot size={12} color="rgba(74,222,139,0.18)" duration={2400} />
-            <Body size={11} weight="semibold" color={palette.positive}>
-              In band
-            </Body>
+          {halted ? (
+            <View style={styles.haltedChip}>
+              <Body size={11} weight="semibold" color={palette.amber}>
+                Halted
+              </Body>
             </View>
-            <View style={styles.guardChip}>
-              <Body size={10.5} weight='semibold' color={palette.cobaltText}>Guard · {multiplier === 1 ? '1.000x' : `${multiplier}x`}</Body>
+          ) : (
+            <View style={styles.inBandChip}>
+              <PulseDot size={12} color="rgba(74,222,139,0.18)" duration={2400} />
+              <Body size={11} weight="semibold" color={palette.positive}>
+                In band
+              </Body>
             </View>
+          )}
+            {halted ? null : (
+              <View style={styles.guardChip}>
+                <Body size={10.5} weight='semibold' color={palette.cobaltText}>Guard · {multiplier === 1 ? '1.000x' : `${multiplier}x`}</Body>
+              </View>
+            )}
           </View>
         </View>
 
@@ -132,6 +155,8 @@ export function StrategyScene({ insets, ticker, standalone = false, onBack }: Pr
             </Num>
           </View>
         </View>
+
+        {splitAffected ? <SplitReviewPanel strategy={signedStrategy} /> : null}
 
         <View style={styles.positionPanel}>
           <View style={styles.panelSpecular} />
@@ -258,6 +283,7 @@ const styles = StyleSheet.create({
   },
   headerSub: { marginTop: 1 },
   inBandChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(74,222,139,0.22)', backgroundColor: 'rgba(74,222,139,0.1)' },
+  haltedChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(224,163,60,0.24)', backgroundColor: 'rgba(224,163,60,0.1)' },
   guardChip: {
   paddingHorizontal: 9,
   paddingVertical: 3.5,

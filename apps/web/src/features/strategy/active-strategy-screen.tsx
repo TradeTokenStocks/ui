@@ -8,10 +8,11 @@ import {
   formatPercent,
   formatUsd,
   resolveCompany,
+  rescaleStrategyPrices,
   resolveStrategy,
   type LedgerRow,
 } from '@tradetoken/domain';
-import { companyDetails, strategies, strategyActivity } from '@tradetoken/domain/fixtures';
+import { companyDetails, nvdaSplit, strategies, strategyActivity } from '@tradetoken/domain/fixtures';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -30,6 +31,9 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
+import { SplitReviewPanel } from './components/split-review-panel';
+import { useSplitRescaled } from './split-review-store';
+
 const FILTERS = [
   { value: 'all', label: 'All' },
   { value: 'onchain', label: 'Onchain' },
@@ -38,10 +42,17 @@ const FILTERS = [
 
 export function ActiveStrategyScreen({ ticker }: { ticker: string }) {
   const [filter, setFilter] = useState<string>('all');
-  const strategy = resolveStrategy(strategies, ticker);
+  const signedStrategy = resolveStrategy(strategies, ticker);
+  const splitAffected = signedStrategy.ticker === nvdaSplit.ticker;
+  const splitRescaled = useSplitRescaled();
+  // Once rescaled, the band and spot on this page read in post-split prices.
+  const strategy = splitAffected && splitRescaled
+    ? rescaleStrategyPrices(signedStrategy, nvdaSplit.multiplierAfter / nvdaSplit.multiplierBefore)
+    : signedStrategy;
+  const halted = splitAffected && !splitRescaled;
 
   const company = resolveCompany(companyDetails, strategy.ticker, 'NVDA');
-  const multiplier = company.multiplier ?? 1.0;
+  const multiplier = splitAffected && splitRescaled ? nvdaSplit.multiplierAfter : (company.multiplier ?? 1.0);
   const guardBounds = calculateMultiplierBounds(multiplier, 5);
 
   const rows = (strategyActivity[strategy.ticker] ?? []).filter(
@@ -68,11 +79,15 @@ export function ActiveStrategyScreen({ ticker }: { ticker: string }) {
           <Display as="h1" className="text-2xl">
             {bandMarket(strategy.ticker)}
           </Display>
-          <Chip tone="positive">
-            <PulseDot />
-            In band
-          </Chip>
-          <Chip tone='cobalt'>Guard active · {multiplier === 1 ? '1.000x' : `${multiplier}x`}</Chip>
+          {halted ? (
+            <Chip tone="amber">Halted</Chip>
+          ) : (
+            <Chip tone="positive">
+              <PulseDot />
+              In band
+            </Chip>
+          )}
+          {halted ? null : <Chip tone='cobalt'>Guard active · {multiplier === 1 ? '1.000x' : `${multiplier}x`}</Chip>}
         </div>
         <Num className="mt-1.5 block text-[12px] text-ink-quaternary">
           Open {strategy.openDays} days · opened from executable exposure only
@@ -89,6 +104,8 @@ export function ActiveStrategyScreen({ ticker }: { ticker: string }) {
           </Num>
         </div>
       </header>
+
+      {splitAffected ? <SplitReviewPanel strategy={signedStrategy} /> : null}
 
       <Panel className="p-5">
         {/* Where the band sits against spot. The shaded region is the range the
@@ -185,11 +202,6 @@ export function ActiveStrategyScreen({ ticker }: { ticker: string }) {
             Open another band
           </Link>
         </Button>
-        {strategy.ticker === 'NVDA' ? (
-          <Button asChild variant="ghost">
-            <Link href="/events/nvda-split">Review the Nvidia split</Link>
-          </Button>
-        ) : null}
       </div>
 
       <SandboxNote>

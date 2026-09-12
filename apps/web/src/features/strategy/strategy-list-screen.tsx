@@ -7,11 +7,12 @@ import {
   formatPercent,
   formatUsd,
   isGain,
+  rescaleStrategyPrices,
   strategyMechanismLabel,
   type LiveStrategyRecord,
   type StrategySummary,
 } from '@tradetoken/domain';
-import { strategies } from '@tradetoken/domain/fixtures';
+import { nvdaSplit, strategies } from '@tradetoken/domain/fixtures';
 
 import { Chip, Display, Num, Panel, PulseDot, SandboxNote } from '@/components/primitives';
 import { ScreenField } from '@/components/screen-field';
@@ -20,6 +21,7 @@ import { cn } from '@/lib/utils';
 
 import { type CreatedSandboxStrategy, useCreatedStrategies } from './created-strategies-store';
 import { useLiveStrategies } from './live-strategy-store';
+import { useSplitRescaled } from './split-review-store';
 
 export function StrategyListScreen() {
   const createdStrategies = useCreatedStrategies();
@@ -143,6 +145,12 @@ function CreatedStrategyCard({ strategy }: { strategy: CreatedSandboxStrategy })
 }
 
 function StrategyCard({ strategy }: { strategy: StrategySummary }) {
+  const splitRescaled = useSplitRescaled();
+  const splitAffected = strategy.ticker === nvdaSplit.ticker;
+  const halted = splitAffected && !splitRescaled;
+  const band = splitAffected && splitRescaled
+    ? rescaleStrategyPrices(strategy, nvdaSplit.multiplierAfter / nvdaSplit.multiplierBefore)
+    : strategy;
   const positionValue = strategy.depositedUsd * (1 + strategy.gainVsDepositPct / 100);
 
   return (
@@ -158,10 +166,10 @@ function StrategyCard({ strategy }: { strategy: StrategySummary }) {
               <Chip>{strategyMechanismLabel(strategy.mechanism)}</Chip>
             </div>
             <Num className="mt-1.5 block text-[11px] text-ink-quaternary">
-              {formatUsd(strategy.lowerUsd, { digits: 2 })} — {formatUsd(strategy.upperUsd, { digits: 2 })}
+              {formatUsd(band.lowerUsd, { digits: 2 })} — {formatUsd(band.upperUsd, { digits: 2 })}
             </Num>
           </div>
-          <Chip tone="positive"><PulseDot />In band</Chip>
+          {halted ? <Chip tone="amber">Halted · review</Chip> : <Chip tone="positive"><PulseDot />In band</Chip>}
         </div>
 
         <div className="mt-6 flex items-end justify-between gap-4 border-t border-stroke-hairline pt-4">

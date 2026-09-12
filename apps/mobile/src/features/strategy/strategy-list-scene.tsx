@@ -17,9 +17,10 @@ import {
   formatPercent,
   formatUsd,
   isGain,
+  rescaleStrategyPrices,
   strategyMechanismLabel,
 } from "@tradetoken/domain";
-import { strategies } from "@tradetoken/domain/fixtures";
+import { nvdaSplit, strategies } from "@tradetoken/domain/fixtures";
 import type { StrategySummary } from "@tradetoken/domain";
 import {
   useLiveStrategies,
@@ -35,6 +36,8 @@ import {
   space,
   stroke,
 } from "@/theme/tokens";
+
+import { useSplitRescaled } from "./split-review-store";
 
 /** Height of the dither field at the top of the screen. */
 const FIELD_HEIGHT = 220;
@@ -192,6 +195,12 @@ function LiveStrategyCard({ strategy }: { strategy: LiveStrategyRecord }) {
 }
 
 function StrategyCard({ strategy }: { strategy: StrategySummary }) {
+  const splitRescaled = useSplitRescaled();
+  const splitAffected = strategy.ticker === nvdaSplit.ticker;
+  const halted = splitAffected && !splitRescaled;
+  const band = splitAffected && splitRescaled
+    ? rescaleStrategyPrices(strategy, nvdaSplit.multiplierAfter / nvdaSplit.multiplierBefore)
+    : strategy;
   // Approximate mark-to-market for the list row. The detail screen simulates
   // this live; here it only needs to be directionally right at a glance.
   const positionValue =
@@ -224,13 +233,17 @@ function StrategyCard({ strategy }: { strategy: StrategySummary }) {
           </View>
           <Num size={11.5} color={ink.quaternary} style={styles.cardSub}>
             Open {strategy.openDays} days ·{" "}
-            {formatUsd(strategy.lowerUsd, { digits: 2 })} —{" "}
-            {formatUsd(strategy.upperUsd, { digits: 2 })}
+            {formatUsd(band.lowerUsd, { digits: 2 })} —{" "}
+            {formatUsd(band.upperUsd, { digits: 2 })}
           </Num>
         </View>
-        <View style={styles.inBandChip}>
-          <Body size={11} weight="semibold" color={palette.positive}>
-            In band
+        <View style={halted ? styles.haltedChip : styles.inBandChip}>
+          <Body
+            size={11}
+            weight="semibold"
+            color={halted ? palette.amber : palette.positive}
+          >
+            {halted ? "Halted · review" : "In band"}
           </Body>
         </View>
       </View>
@@ -347,6 +360,14 @@ const styles = StyleSheet.create({
     backgroundColor: fill.subtle,
   },
   cardSub: { marginTop: 3 },
+  haltedChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: "rgba(224,163,60,0.24)",
+    backgroundColor: "rgba(224,163,60,0.1)",
+  },
   inBandChip: {
     paddingHorizontal: 10,
     paddingVertical: 6,
