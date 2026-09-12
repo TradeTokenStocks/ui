@@ -70,7 +70,7 @@ function ConcentratedStrategyReview() {
     <div className="mx-auto max-w-[560px] space-y-7">
       <header>
         <Link
-          href={{ pathname: '/strategies/new/configure', query: { ticker: company.ticker } }}
+          href={{ pathname: '/strategies/new/configure', query: { mechanism: 'concentrated', ticker: company.ticker } }}
           className="text-[12.5px] font-medium text-ink-tertiary transition-colors hover:text-ink-primary">
           ← Adjust
         </Link>

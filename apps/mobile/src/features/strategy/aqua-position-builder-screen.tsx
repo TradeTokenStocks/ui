@@ -23,6 +23,7 @@ import {
   space,
   stroke,
 } from "@/theme/tokens";
+import { formatUsd } from "@tradetoken/domain";
 import {
   pairedRepresentations,
   tokenizedStocks,
@@ -194,6 +195,7 @@ export function AquaPositionBuilderScreen() {
               symbol={tokenA.symbol}
               issuer="Dinari"
               balance={liveBalances?.a ?? String(tokenA.walletBalance)}
+              unitUsd={tokenA.priceUsd * tokenA.multiplier}
               value={amountA}
               onChange={setAmountA}
             />
@@ -201,6 +203,7 @@ export function AquaPositionBuilderScreen() {
               symbol={tokenB.symbol}
               issuer="xStock"
               balance={liveBalances?.b ?? String(tokenB.walletBalance)}
+              unitUsd={tokenB.priceUsd * tokenB.multiplier}
               value={amountB}
               onChange={setAmountB}
             />
@@ -448,12 +451,16 @@ function AmountInput({
   symbol,
   issuer,
   balance,
+  unitUsd,
   value,
   onChange,
 }: {
   symbol: string;
   issuer: string;
+  /** Token units held, as displayed. */
   balance: string;
+  /** USD per token unit, so the balance reads in the same unit as the input. */
+  unitUsd: number;
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -464,7 +471,7 @@ function AmountInput({
           {issuer}
         </Body>
         <Num size={10} color={ink.faint}>
-          Bal {balance}
+          {balance} {symbol} · {formatUsd(Number(balance.replace(/,/g, "")) * unitUsd)}
         </Num>
       </View>
       <View style={styles.amountInputRow}>

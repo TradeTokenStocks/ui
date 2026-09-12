@@ -47,12 +47,8 @@ import { useWalletStockHoldings } from '@/features/stocks/use-wallet-stock-holdi
 
 /**
  * What a company holds onchain, taken from the legs its own detail page calls
- * executable.
- *
- * Deriving it from `onchainPct` instead would be a second opinion, and the
- * fixture's percentages do not always agree with its dollar figures — NVDA's
- * legs are 27/23% of the total by value but labelled 27/15%. A row and the page
- * it opens have to show the same number, so both read the same source.
+ * executable. A row and the page it opens have to show the same number, so
+ * both read the same source rather than a stored percentage.
  */
 function onchainValueUsd(company: CompanyExposure): number {
   const detail = companyDetails[company.ticker];
@@ -81,27 +77,17 @@ export function PortfolioScreen() {
     ...companies.map((company) => {
       const holding = added[company.ticker];
       /**
-       * Once a brokerage is linked, observed exposure has a real source, and
-       * these rows give up their fixture's share of it: the same company would
-       * otherwise claim an invented brokerage split here and a true one in the
-       * observed list below. What is left is the onchain half — the only half a
-       * strategy could ever draw on anyway.
+       * Rows show only what the wallet holds. Observed exposure comes from a
+       * linked brokerage alone, listed in its own group below, so a row never
+       * claims a brokerage split that the card above reports as $0.
        */
-      if (brokerage.connected) {
-        const onchainUsd = onchainValueUsd(company) + (holding?.amountUsd ?? 0);
-        return {
-          ...company,
-          valueUsd: onchainUsd,
-          observedPct: 0,
-          onchainPct: 100,
-          ...(holding ? { dividendPreference: holding.preference } : {}),
-        };
-      }
-      if (!holding) return company;
-      const valueUsd = company.valueUsd + holding.amountUsd;
-      const observedValueUsd = company.valueUsd * (company.observedPct / 100);
-      const observedPct = Math.round((observedValueUsd / valueUsd) * 100);
-      return { ...company, valueUsd, observedPct, onchainPct: 100 - observedPct, dividendPreference: holding.preference };
+      return {
+        ...company,
+        valueUsd: onchainValueUsd(company) + (holding?.amountUsd ?? 0),
+        observedPct: 0,
+        onchainPct: 100,
+        ...(holding ? { dividendPreference: holding.preference } : {}),
+      };
     }),
     ...Object.entries(added).filter(([ticker]) => !companies.some((company) => company.ticker === ticker)).map(([ticker, holding]) => {
       const stock = tokenizedStocks.find((item) => item.ticker === ticker)!;

@@ -35,16 +35,14 @@ const TINTS: Record<Representation['tint'], { color: string; glow?: string }> = 
 /**
  * The company's exposure, reconciled against the live brokerage.
  *
- * A linked brokerage replaces the fixture's observed leg with what it actually
- * holds, rather than showing both. The headline total, the share-equivalents,
+ * Observed legs come only from a linked brokerage, never from the fixture, so
+ * an unlinked account shows its onchain legs alone. The headline total, the share-equivalents,
  * the stacked bar and the allocatable figure are all derived from the resulting
  * legs, so this page cannot disagree with itself or with the portfolio row that
  * led here.
  */
 function reconcile(company: CompanyDetail, brokerage: BrokerageHoldings): CompanyDetail {
-  const representations = brokerage.connected
-    ? observedLegs(company, brokerage)
-    : company.representations;
+  const representations = observedLegs(company, brokerage);
 
   const totalUsd = representations.reduce((sum, rep) => sum + rep.valueUsd, 0);
   return {

@@ -99,26 +99,17 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
     ...companies.map((company) => {
       const holding = added[company.ticker];
       /**
-       * Once a brokerage is linked, observed exposure has a real source, and
-       * these rows give up their fixture's share of it: the same company would
-       * otherwise claim an invented brokerage split here and a true one in the
-       * observed list below.
+       * Rows show only what the wallet holds. Observed exposure comes from a
+       * linked brokerage alone, listed in its own group below, so a row never
+       * claims a brokerage split that the card above reports as $0.
        */
-      if (brokerage.connected) {
-        const onchainUsd = onchainValueUsd(company) + (holding?.amountUsd ?? 0);
-        return {
-          ...company,
-          valueUsd: onchainUsd,
-          observedPct: 0,
-          onchainPct: 100,
-          ...(holding ? { dividendPreference: holding.preference } : {}),
-        };
-      }
-      if (!holding) return company;
-      const valueUsd = company.valueUsd + holding.amountUsd;
-      const observedValueUsd = company.valueUsd * (company.observedPct / 100);
-      const observedPct = Math.round((observedValueUsd / valueUsd) * 100);
-      return { ...company, valueUsd, observedPct, onchainPct: 100 - observedPct, dividendPreference: holding.preference };
+      return {
+        ...company,
+        valueUsd: onchainValueUsd(company) + (holding?.amountUsd ?? 0),
+        observedPct: 0,
+        onchainPct: 100,
+        ...(holding ? { dividendPreference: holding.preference } : {}),
+      };
     }),
     ...Object.entries(added)
       .filter(([ticker]) => !companies.some((company) => company.ticker === ticker))
@@ -446,12 +437,18 @@ function CompanyRow({ company, divided }: { company: CompanyExposure; divided: b
           <View style={[styles.barObserved, { flex: company.observedPct }]} />
         </View>
         <View style={styles.splitLabels}>
-          <Num size={10.5} color={palette.cobaltText}>
-            Wallet {company.onchainPct}%
-          </Num>
-          <Num size={10.5} color={ink.faint}>
-            Brokerage {company.observedPct}%
-          </Num>
+          {/* A zero side is noise, not information — a full bar already says
+              which custody model holds everything. */}
+          {company.onchainPct > 0 ? (
+            <Num size={10.5} color={palette.cobaltText}>
+              Wallet {company.onchainPct}%
+            </Num>
+          ) : null}
+          {company.observedPct > 0 ? (
+            <Num size={10.5} color={ink.faint} style={styles.observedLabel}>
+              Brokerage {company.observedPct}%
+            </Num>
+          ) : null}
         </View>
       </View>
     </Pressable>
@@ -643,6 +640,7 @@ const styles = StyleSheet.create({
   },
   barObserved: { backgroundColor: fill.active },
   barOnchain: { height: '100%' },
+  observedLabel: { marginLeft: 'auto' },
   splitLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
 
   ledger: { paddingHorizontal: 2, paddingVertical: 4 },

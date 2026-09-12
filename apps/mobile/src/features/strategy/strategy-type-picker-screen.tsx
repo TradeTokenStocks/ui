@@ -28,11 +28,6 @@ const OPTIONS: MechanismOption[] = [
     description:
       'Provides liquidity between two tokenized representations of the same company, near their calculated parity.',
   },
-  {
-    mechanism: 'xyk',
-    title: 'Full range',
-    description: "Not used for stock/USDC pairs — a stock and USDC don't hold near a fixed ratio.",
-  },
 ];
 
 /**
@@ -49,7 +44,6 @@ export function StrategyTypePickerScreen() {
   const executableUsd = company ? executableTotalUsd(company) : 0;
 
   const select = (mechanism: StrategyMechanism) => {
-    if (mechanism === 'xyk') return;
     router.push({ pathname: '/strategy/new', params: { ticker, mechanism } });
   };
 
@@ -96,7 +90,7 @@ export function StrategyTypePickerScreen() {
                   {!enabled && (
                     <View style={styles.comingSoon}>
                       <Body size={10.5} weight="semibold" color={ink.quaternary}>
-                        Coming soon
+                        Unavailable
                       </Body>
                     </View>
                   )}

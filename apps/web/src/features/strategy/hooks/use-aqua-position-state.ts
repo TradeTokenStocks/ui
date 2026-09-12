@@ -9,9 +9,11 @@ export type PositionCurve = 'straight' | 'curved';
 const DEFAULT_A = tokenizedStocks.find((stock) => stock.id === 'dinari-nvda')!;
 const DEFAULT_B = tokenizedStocks.find((stock) => stock.id === 'xstock-nvda')!;
 
-export function useAquaPositionState() {
-  const [tokenA, setTokenA] = useState<TokenizedStock>(DEFAULT_A);
-  const [tokenB, setTokenB] = useState<TokenizedStock>(DEFAULT_B);
+export function useAquaPositionState(initial?: { tokenA?: TokenizedStock | undefined; tokenB?: TokenizedStock | undefined }) {
+  const startA = initial?.tokenA ?? DEFAULT_A;
+  const startB = initial?.tokenB ?? DEFAULT_B;
+  const [tokenA, setTokenA] = useState<TokenizedStock>(startA);
+  const [tokenB, setTokenB] = useState<TokenizedStock>(startB);
   const [amountA, setAmountA] = useState('20');
   const [amountB, setAmountB] = useState('20');
   const [feeBps, setFeeBps] = useState(30);
@@ -41,8 +43,8 @@ export function useAquaPositionState() {
   };
 
   const reset = () => {
-    setTokenA(DEFAULT_A);
-    setTokenB(DEFAULT_B);
+    setTokenA(startA);
+    setTokenB(startB);
     setAmountA('20');
     setAmountB('20');
     setFeeBps(30);
