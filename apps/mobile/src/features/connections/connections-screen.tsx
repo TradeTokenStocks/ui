@@ -22,7 +22,6 @@ export function ConnectionsScreen() {
   const { width } = useWindowDimensions();
   const { scenario } = useLocalSearchParams<{ scenario?: string }>();
   const holdings = useBrokerageHoldings();
-  const [expired, setExpired] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [holdingsTime, setHoldingsTime] = useState('18:42 UTC');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,7 +39,7 @@ export function ConnectionsScreen() {
   // sandbox connection.
   const profile = scenarioNames[scenario ?? ''] ?? 'self-directed';
   const simulated = Boolean(scenario);
-  const repairs = (expired ? 1 : 0) + (holdings.needsReconnect ? 1 : 0);
+  const repairs = holdings.needsReconnect ? 1 : 0;
 
   return (
     <View style={styles.root}>
@@ -90,11 +89,6 @@ export function ConnectionsScreen() {
             <View style={styles.actions}><Action label="Connect brokerage" onPress={() => router.push('/snaptrade-portal')} accent /></View>
           </ConnectionCard>
         )}
-
-        {expired && <ConnectionCard title="Alpaca Paper" meta="Disabled · access expired">
-          <View style={styles.expiredRow}><View style={styles.warning}><Body size={13} weight="bold" color={palette.amberBright}>!</Body></View><View style={styles.flex}><Body size={12.5} weight="semibold" color={palette.amberBright}>Reconnect required</Body><Body size={11.5} color={ink.tertiary} style={styles.rowMeta}>Holdings stale from 21 Aug</Body></View></View>
-          <View style={styles.actions}><Action label="Reconnect" onPress={() => router.push({ pathname: '/snaptrade-portal', params: { mode: 'reconnect' } })} accent /><Action label="Remove" onPress={() => setExpired(false)} /></View>
-        </ConnectionCard>}
 
         <Body size={10.5} weight="semibold" color={ink.faint} tracking={1.1} style={styles.legendTitle}>UPDATE CADENCE</Body>
         <View style={styles.legend}><Legend color={palette.positive} title="Real time" meta="Connection health" /><Legend color={palette.cobalt} title="Daily" meta="Holdings snapshots" /><Legend color={palette.amber} title="Daily +1" meta="Transaction history" /></View>
