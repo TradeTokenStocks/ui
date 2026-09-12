@@ -140,7 +140,7 @@ export function AquaPositionBuilder() {
               <Num className="mt-1 block text-lg font-medium">${totalUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Num>
             </div>
             <Button asChild size="lg" className={cn('sm:min-w-52', !position.pairIsSameStock && 'pointer-events-none opacity-50')}>
-              <Link href={{ pathname: '/strategies/review', query: { mode: 'pegged', tokenA: position.tokenA.id, tokenB: position.tokenB.id, amountA: position.amountA, amountB: position.amountB, feeBps: position.feeBps, guard: position.guardTolerancePct } }}>Review position</Link>
+              <Link href={{ pathname: '/strategies/review', query: { mode: 'pegged', tokenA: position.tokenA.id, tokenB: position.tokenB.id, amountA: position.amountA, amountB: position.amountB, feeBps: position.feeBps, guard: position.guardTolerancePct, curve: position.curve } }}>Review position</Link>
             </Button>
           </div>
         </main>
