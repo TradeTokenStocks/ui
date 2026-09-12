@@ -1,18 +1,19 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Check } from 'lucide-react';
 import {
   b20Symbol,
   bandMarket,
+  calculateMultiplierBounds,
   formatNumber,
   formatUsd,
   projectBand,
   resolveCompany,
 } from '@tradetoken/domain';
 import { activeStrategy, companyDetails, wallet } from '@tradetoken/domain/fixtures';
+import { Check } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 
 import { Chip, Display, Num, Panel, SandboxNote } from '@/components/primitives';
 import { Button } from '@/components/ui/button';
@@ -51,6 +52,8 @@ export function StrategyReviewScreen() {
   });
 
   const [opening, setOpening] = useState(false);
+
+  const multiplierBounds = calculateMultiplierBounds(company.multiplier ?? 1.0, 5);
 
   return (
     <div className="mx-auto max-w-[560px] space-y-7">
@@ -102,6 +105,7 @@ export function StrategyReviewScreen() {
           <Fact label="Aqua fee tier" value={`${activeStrategy.feeTierPct.toFixed(2)}%`} />
           <Fact label="Network fee" value={formatUsd(activeStrategy.networkFeeUsd, { digits: 2 })} />
           <Fact label="You can exit" value="Any time" />
+          <Fact label='Multiplier guard' value={`${multiplierBounds.min.toFixed(2)}x - ${multiplierBounds.max.toFixed(2)}x`}/>
         </dl>
       </Panel>
 
@@ -132,6 +136,7 @@ export function StrategyReviewScreen() {
               value={`${formatUsd(projection.lowerUsd, { digits: 2 })} — ${formatUsd(projection.upperUsd, { digits: 2 })}`}
             />
             <Fact label="Opens as" value={`${formatNumber(projection.tokens, 1)} tokens + USDC`} />
+            <Fact label='Circuit breaker' value='Auto-halt on split/dividend (±5%)'/>
           </dl>
           <DialogFooter>
             <DialogClose asChild>
