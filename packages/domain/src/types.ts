@@ -13,6 +13,38 @@
 /** Where a balance or ledger entry came from, and therefore what it can do. */
 export type Provenance = 'onchain' | 'observed';
 
+/** How cash distributions for a tokenized holding should be handled. */
+export type DividendPreference = 'drip' | 'usdc';
+
+/** Issuer/representation families supported by the tokenized-stock catalog. */
+export type StockIssuer = 'dinari' | 'xstock';
+
+/** A chain-specific tokenized representation available to mint or allocate. */
+export type TokenizedStock = {
+  id: string;
+  ticker: string;
+  name: string;
+  issuer: StockIssuer;
+  symbol: string;
+  priceUsd: number;
+  changePct: number;
+  dividendYieldPct: number;
+  decimals: number;
+  multiplier: number;
+  walletBalance: number;
+  categories: readonly string[];
+  /** Undefined until the team's deployment manifest is available. */
+  address?: `0x${string}`;
+};
+
+export type AddStockInput = {
+  stockId: string;
+  amountUsd: number;
+  dividendPreference: DividendPreference;
+  chainId: number;
+  walletAddress: string;
+};
+
 /** A company's total exposure as it appears in the portfolio list. */
 export type CompanyExposure = {
   ticker: string;
@@ -26,6 +58,7 @@ export type CompanyExposure = {
   valueUsd: number;
   /** Day change. Only a strictly positive move is rendered as a gain. */
   changePct: number;
+  dividendPreference?: DividendPreference;
 };
 
 /**
@@ -88,6 +121,7 @@ export type CompanyDetail = {
   shareEquivalents: number;
   representations: Representation[];
   multiplier?: number;
+  dividendPreference?: DividendPreference;
 };
 
 /** How wide a band is allowed to drift before it stops earning. */

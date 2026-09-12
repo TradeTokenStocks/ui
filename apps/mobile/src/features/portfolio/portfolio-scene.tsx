@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useState } from 'react';
 import {
   Pressable,
@@ -33,8 +33,10 @@ import {
   companies,
   events,
   hasUnreviewedEvents,
+  tokenizedStocks,
   totals,
 } from '@tradetoken/domain/fixtures';
+import { useAddedStockHoldings } from '@/features/stocks/stock-holdings-store';
 
 /** Height of the dither field at the top of the screen. */
 const FIELD_HEIGHT = 380;
@@ -53,6 +55,7 @@ const SEGMENTS: Segment[] = [
 export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
   const { width } = useWindowDimensions();
   const [segment, setSegment] = useState('holdings');
+  const added = useAddedStockHoldings();
   const { user } = usePrivy();
 
   const emailAccount = user?.linked_accounts?.find((acc) => acc.type === 'email');
@@ -63,7 +66,25 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
   const avatarInitial = displayName[0]?.toUpperCase() ?? 'U';
 
   const navHeight = 56 + insets.bottom + 26;
-  const exposure = splitUsd(totals.exposureUsd);
+  const addedTotalUsd = Object.values(added).reduce((total, holding) => total + holding.amountUsd, 0);
+  const addedCompanyCount = Object.keys(added).filter((ticker) => !companies.some((company) => company.ticker === ticker)).length;
+  const exposure = splitUsd(totals.exposureUsd + addedTotalUsd);
+  const visibleCompanies: CompanyExposure[] = [
+    ...companies.map((company) => {
+      const holding = added[company.ticker];
+      if (!holding) return company;
+      const valueUsd = company.valueUsd + holding.amountUsd;
+      const observedValueUsd = company.valueUsd * (company.observedPct / 100);
+      const observedPct = Math.round((observedValueUsd / valueUsd) * 100);
+      return { ...company, valueUsd, observedPct, onchainPct: 100 - observedPct, dividendPreference: holding.preference };
+    }),
+    ...Object.entries(added)
+      .filter(([ticker]) => !companies.some((company) => company.ticker === ticker))
+      .map(([ticker, holding]) => {
+        const stock = tokenizedStocks.find((item) => item.ticker === ticker)!;
+        return { ticker, name: stock.name, initials: ticker.slice(0, 2), observedPct: 0, onchainPct: 100, valueUsd: holding.amountUsd, changePct: stock.changePct, dividendPreference: holding.preference };
+      }),
+  ];
 
   return (
     <View style={styles.root}>
@@ -172,7 +193,7 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
               Wallet · allocatable
             </Body>
             <Num size={20} weight="medium" color="#fff" style={styles.cardValue}>
-              {formatUsd(totals.walletAllocatableUsd)}
+              {formatUsd(totals.walletAllocatableUsd + addedTotalUsd)}
             </Num>
           </View>
 
@@ -199,16 +220,25 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
               <>
                 <View style={styles.panelHeader}>
                   <View style={styles.panelTitleRow}>
-                    <Body size={15.5} weight="semibold" style={styles.flex}>
-                      Companies
-                    </Body>
-                    <Body size={11.5} weight="medium" color={ink.quaternary}>
-                      {formatNumber(totals.holdingsCount)} holdings
-                    </Body>
+                    <View style={styles.panelTitleCopy}>
+                      <Body size={15.5} weight="semibold">
+                        Companies
+                      </Body>
+                      <Body size={11.5} weight="medium" color={ink.quaternary} style={styles.panelCount}>
+                        {formatNumber(totals.holdingsCount + addedCompanyCount)} holdings
+                      </Body>
+                    </View>
+                    <Pressable
+                      onPress={() => router.push('/stocks/add' as Href)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Add a tokenized stock"
+                      style={({ pressed }) => [styles.addButton, pressed && { opacity: 0.72 }]}>
+                      <Body size={11.5} weight="semibold" color="#fff">＋ Add stock</Body>
+                    </Pressable>
                   </View>
                 </View>
                 <View style={styles.companyList}>
-                  {companies.map((company, index) => (
+                  {visibleCompanies.map((company, index) => (
                     <CompanyRow key={company.ticker} company={company} divided={index > 0} />
                   ))}
                 </View>
@@ -258,9 +288,12 @@ function CompanyRow({ company, divided }: { company: CompanyExposure; divided: b
       <View style={styles.rowBody}>
         <View style={styles.companyLine}>
           <View style={styles.flex}>
-            <Body size={14.5} weight="semibold">
-              {company.name}
-            </Body>
+            <View style={styles.companyNameRow}>
+              <Body size={14.5} weight="semibold" numberOfLines={1} style={styles.companyName}>
+                {company.name}
+              </Body>
+              {company.dividendPreference ? <View style={[styles.dividendBadge, company.dividendPreference === 'usdc' && styles.dividendBadgeUsdc]}><Body size={9} weight="semibold" color={company.dividendPreference === 'usdc' ? palette.positive : palette.cobaltText}>{company.dividendPreference === 'drip' ? 'DRIP' : 'USDC yield'}</Body></View> : null}
+            </View>
             <Num size={10.5} color={ink.faint} style={styles.ticker}>
               {company.ticker}
             </Num>
@@ -437,7 +470,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: stroke.hairline,
   },
-  panelTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  panelTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
+  panelTitleCopy: { flex: 1 },
+  panelCount: { marginTop: 3 },
+  addButton: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.md, backgroundColor: palette.cobalt },
   companyList: { paddingHorizontal: 10 },
 
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 13, paddingHorizontal: 8, paddingVertical: 16 },
@@ -456,6 +492,10 @@ const styles = StyleSheet.create({
   rowTrailing: { alignItems: 'flex-end' },
   rowSub: { marginTop: 2 },
   companyLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  companyNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  companyName: { flexShrink: 1 },
+  dividendBadge: { flexShrink: 0, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(94,124,255,.3)', backgroundColor: 'rgba(94,124,255,.09)' },
+  dividendBadgeUsdc: { borderColor: 'rgba(57,198,137,.3)', backgroundColor: 'rgba(57,198,137,.08)' },
   ticker: { marginTop: 2 },
   flex: { flex: 1 },
 

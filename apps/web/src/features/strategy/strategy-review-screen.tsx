@@ -9,8 +9,8 @@ import {
   projectBand,
   resolveCompany,
 } from '@tradetoken/domain';
-import { activeStrategy, companyDetails, wallet } from '@tradetoken/domain/fixtures';
-import { Check } from 'lucide-react';
+import { activeStrategy, companyDetails, stockRepresentation, wallet } from '@tradetoken/domain/fixtures';
+import { Check, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
@@ -29,12 +29,20 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
+import { TokenMark } from './components/aqua-token-select-dialog';
+
 function numericParam(value: string | null, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 export function StrategyReviewScreen() {
+  const params = useSearchParams();
+
+  return params.get('mode') === 'pegged' ? <PeggedStrategyReview /> : <ConcentratedStrategyReview />;
+}
+
+function ConcentratedStrategyReview() {
   const params = useSearchParams();
   const router = useRouter();
 
@@ -157,6 +165,97 @@ export function StrategyReviewScreen() {
       <SandboxNote className="text-center">
         Sandbox — no real funds move and no wallet signature is requested.
       </SandboxNote>
+    </div>
+  );
+}
+
+function PeggedStrategyReview() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const tokenA = stockRepresentation(params.get('tokenA') ?? 'dinari-nvda') ?? stockRepresentation('dinari-nvda')!;
+  const tokenB = stockRepresentation(params.get('tokenB') ?? 'xstock-nvda') ?? stockRepresentation('xstock-nvda')!;
+  const amountA = numericParam(params.get('amountA'), 20);
+  const amountB = numericParam(params.get('amountB'), 20);
+  const feeBps = numericParam(params.get('feeBps'), 30);
+  const guard = numericParam(params.get('guard'), 5);
+  const [opening, setOpening] = useState(false);
+  const ratio = tokenA.multiplier / tokenB.multiplier;
+  const total = amountA + amountB;
+
+  return (
+    <div className="mx-auto max-w-[620px] space-y-7">
+      <header>
+        <Link
+          href={{
+            pathname: '/strategies/new/configure',
+            query: { tokenA: tokenA.id, tokenB: tokenB.id },
+          }}
+          className="text-[12.5px] font-medium text-ink-tertiary transition-colors hover:text-ink-primary">
+          ← Adjust position
+        </Link>
+        <Display as="h1" className="mt-4 text-2xl">Review position</Display>
+        <Display className="mt-4 text-4xl">{formatUsd(total)}</Display>
+        <Num className="mt-2 block text-[12.5px] text-ink-tertiary">{tokenA.symbol} / {tokenB.symbol} · same-stock pegged</Num>
+      </header>
+
+      <Panel className="p-5">
+        <div className="flex items-center gap-3 border-b border-stroke-hairline pb-4">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-cobalt to-violet text-[11px] font-semibold text-white">B</span>
+          <Num className="flex-1 text-[12px] text-ink-secondary">{wallet.chain} · {wallet.short}</Num>
+          <Chip tone="positive">In wallet</Chip>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <ReviewToken stock={tokenA} amount={amountA} />
+          <ReviewToken stock={tokenB} amount={amountB} />
+        </div>
+
+        <div className="mt-5 flex items-start gap-3 rounded-xl border border-positive/20 bg-positive/[0.045] p-4">
+          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-positive" />
+          <div>
+            <p className="text-[12.5px] font-semibold text-positive">Two-leg multiplier protection</p>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-ink-quaternary">Execution halts if either token leaves ±{guard}% of its signed multiplier. Existing fills remain settled; unsafe new fills fail.</p>
+          </div>
+        </div>
+
+        <dl className="mt-5 space-y-2.5 border-t border-stroke-hairline pt-4">
+          <Fact label="Reference ratio" value={ratio.toFixed(4)} />
+          <Fact label="Signed range" value={`${(ratio * (1 - guard / 100)).toFixed(4)} — ${(ratio * (1 + guard / 100)).toFixed(4)}`} />
+          <Fact label="Aqua fee" value={`${(feeBps / 100).toFixed(2)}%`} />
+          <Fact label="Custody" value="Tokens stay in wallet" />
+        </dl>
+      </Panel>
+
+      <Dialog>
+        <DialogTrigger asChild><Button size="lg" className="w-full">Sign and deploy position</Button></DialogTrigger>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Deploy this Aqua strategy?</DialogTitle>
+            <DialogDescription>The final integration will request token approvals, sign the guarded strategy, and ship it to Aqua. This sandbox confirmation does not sign or submit anything.</DialogDescription>
+          </DialogHeader>
+          <dl className="space-y-2.5 rounded-lg border border-stroke-hairline bg-fill-subtle p-4">
+            <Fact label="Pair" value={`${tokenA.symbol} / ${tokenB.symbol}`} />
+            <Fact label="Available balance" value={formatUsd(total)} />
+            <Fact label="Circuit breaker" value={`Both legs · ±${guard}%`} />
+          </dl>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="ghost">Not now</Button></DialogClose>
+            <Button disabled={opening} onClick={() => { setOpening(true); router.push('/strategies'); }}>{opening ? 'Deploying…' : 'Confirm sandbox'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <SandboxNote className="text-center">Sandbox — contract addresses are intentionally pending the teammate deployment manifest.</SandboxNote>
+    </div>
+  );
+}
+
+function ReviewToken({ stock, amount }: { stock: NonNullable<ReturnType<typeof stockRepresentation>>; amount: number }) {
+  return (
+    <div className="rounded-xl border border-stroke-hairline bg-fill-subtle p-4">
+      <div className="flex items-center gap-3"><TokenMark stock={stock} size="sm" /><span><span className="block text-[12px] font-semibold">{stock.symbol}</span><span className="text-[10.5px] text-ink-faint">{stock.issuer === 'dinari' ? 'Dinari' : 'xStock'}</span></span></div>
+      <Num className="mt-4 block text-xl font-medium">{formatUsd(amount)}</Num>
+      <Num className="mt-1 block text-[10.5px] text-ink-faint">multiplier {stock.multiplier.toFixed(4)}x</Num>
     </div>
   );
 }

@@ -26,5 +26,8 @@
   "trustedDependencies": [
     "@shopify/react-native-skia",
     "unrs-resolver"
-  ]
+  ],
+  "patchedDependencies": {
+    "@1inch/swap-vm-sdk@0.4.4": "patches/@1inch%2Fswap-vm-sdk@0.4.4.patch"
+  }
 }
