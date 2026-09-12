@@ -61,7 +61,7 @@ export function SnapTradePortalScreen() {
         // Returning from the portal is the one moment the shared state is
         // certainly stale: a brokerage was linked while the app sat still.
         refetch();
-        router.replace('/connections');
+        router.dismissTo('/connections');
       }
     } catch (caught) {
       // A portal handoff crosses Privy, this app's API and an external browser.
