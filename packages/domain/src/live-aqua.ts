@@ -128,6 +128,27 @@ export function usdAllocationToTokenUnits({
   );
 }
 
+/** Convert raw token units back to USD with six decimal places of precision. */
+export function tokenUnitsToUsdE6({
+  tokenUnits,
+  priceUsdE6,
+  multiplierE18,
+  tokenDecimals,
+}: {
+  tokenUnits: bigint;
+  priceUsdE6: bigint;
+  multiplierE18: bigint;
+  tokenDecimals: number;
+}): bigint {
+  if (tokenUnits < ZERO) throw new RangeError("tokenUnits cannot be negative");
+  if (priceUsdE6 <= ZERO || multiplierE18 <= ZERO)
+    throw new RangeError("price and multiplier must be positive");
+  return (
+    (tokenUnits * priceUsdE6 * multiplierE18) /
+    (TEN ** BigInt(tokenDecimals) * TEN ** BigInt(18))
+  );
+}
+
 function asCall(call: {
   to: string;
   data: string;
@@ -253,6 +274,28 @@ export function buildSwapCall({
 
 export function decodeLiveOrder(encodedOrder: `0x${string}`): Order {
   return Order.decode(new HexString(encodedOrder));
+}
+
+export function buildDockCall({
+  deployment,
+  strategyHash,
+  tokens,
+}: {
+  deployment: LiveHackathonDeployment;
+  strategyHash: `0x${string}`;
+  tokens: readonly ContractAddress[];
+}): EncodedCall {
+  if (tokens.length === 0) throw new Error("Dock requires at least one token");
+  const aqua = new AquaProtocolContract(
+    new AquaAddress(deployment.contracts.aqua),
+  );
+  return asCall(
+    aqua.dock({
+      app: new AquaAddress(deployment.contracts.aquaSwapVmRouter),
+      strategyHash: new AquaHexString(strategyHash),
+      tokens: tokens.map((token) => new AquaAddress(token)),
+    }),
+  );
 }
 
 export function buildQuoteCall({

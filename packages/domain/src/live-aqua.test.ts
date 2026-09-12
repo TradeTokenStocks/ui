@@ -1,15 +1,28 @@
 import { describe, expect, test } from "bun:test";
 import { AquaProgramBuilder } from "@1inch/swap-vm-sdk";
+import {
+  BaseError,
+  ContractFunctionRevertedError,
+  decodeFunctionData,
+  encodeErrorResult,
+} from "viem";
 
 import type { DeployedStockToken, LiveHackathonDeployment } from "./deployment";
-import { stockMintCall } from "./contracts";
 import {
+  aquaAbi,
+  decodeMultiplierGuardFailure,
+  multiplierGuardErrorAbi,
+  stockMintCall,
+} from "./contracts";
+import {
+  buildDockCall,
   buildLivePeggedPosition,
   buildQuoteCall,
   buildSwapCall,
   decodeLiveOrder,
   multiplierBounds,
   parseDecimalUnits,
+  tokenUnitsToUsdE6,
   usdAllocationToTokenUnits,
 } from "./live-aqua";
 
@@ -130,5 +143,68 @@ describe("live Aqua integration", () => {
     expect(swap.to).toBe(deployment.contracts.aquaSwapVmRouter);
     expect(quote.to).toBe(deployment.contracts.aquaSwapVmRouter);
     expect(swap.data).not.toBe(quote.data);
+  });
+
+  test("values token units back to USD through the multiplier", () => {
+    expect(
+      tokenUnitsToUsdE6({
+        tokenUnits: 2n * 10n ** 18n,
+        priceUsdE6: 178_400_000n,
+        multiplierE18: 1_050_000_000_000_000_000n,
+        tokenDecimals: 18,
+      }),
+    ).toBe(374_640_000n);
+  });
+
+  test("encodes an Aqua dock call for the strategy tokens", () => {
+    const strategyHash = `0x${"ab".repeat(32)}` as const;
+    const call = buildDockCall({
+      deployment,
+      strategyHash,
+      tokens: [tokenA.address, tokenB.address],
+    });
+    expect(call.to).toBe(deployment.contracts.aqua);
+    expect(call.value).toBe(0n);
+    const decoded = decodeFunctionData({ abi: aquaAbi, data: call.data });
+    expect(decoded.functionName).toBe("dock");
+    expect(decoded.args).toEqual([
+      deployment.contracts.aquaSwapVmRouter,
+      strategyHash,
+      [tokenA.address, tokenB.address],
+    ]);
+    expect(() =>
+      buildDockCall({ deployment, strategyHash, tokens: [] }),
+    ).toThrow();
+  });
+
+  test("recognizes only the multiplier guard revert", () => {
+    const data = encodeErrorResult({
+      abi: multiplierGuardErrorAbi,
+      errorName: "CurrentMultiplierIsNotInRange",
+      args: [
+        "0x5000000000000000000000000000000000000005",
+        tokenB.address,
+        1_100_000_000_000_000_000n,
+        950_000_000_000_000_000n,
+        1_050_000_000_000_000_000n,
+      ],
+    });
+    const nested = new BaseError("Execution reverted", {
+      cause: Object.assign(new Error("rpc"), { data }),
+    });
+    expect(decodeMultiplierGuardFailure(nested)).toEqual({
+      token: tokenB.address,
+      currentMultiplier: 1_100_000_000_000_000_000n,
+      minMultiplier: 950_000_000_000_000_000n,
+      maxMultiplier: 1_050_000_000_000_000_000n,
+    });
+
+    const other = new ContractFunctionRevertedError({
+      abi: [],
+      functionName: "quote",
+      data: "0x08c379a0",
+    });
+    expect(decodeMultiplierGuardFailure(other)).toBeNull();
+    expect(decodeMultiplierGuardFailure(new Error("fetch failed"))).toBeNull();
   });
 });
