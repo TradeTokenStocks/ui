@@ -9,6 +9,7 @@
     "./fixtures": "./src/fixtures/index.ts"
   },
   "scripts": {
+    "deployment:check": "bun run scripts/check-deployment.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -17,6 +18,7 @@
   },
   "dependencies": {
     "@1inch/aqua-sdk": "0.3.4",
-    "@1inch/swap-vm-sdk": "0.4.4"
+    "@1inch/swap-vm-sdk": "0.4.4",
+    "viem": "2.56.0"
   }
 }

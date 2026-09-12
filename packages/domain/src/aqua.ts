@@ -1,4 +1,4 @@
-import { Address, AquaProgramBuilder, instructions } from '@1inch/swap-vm-sdk';
+import { Address, AquaProgramBuilder, instructions } from "@1inch/swap-vm-sdk";
 
 export type GuardedPeggedToken = {
   address: `0x${string}`;
@@ -11,7 +11,7 @@ export type GuardedPeggedProgramInput = {
   tokenA: GuardedPeggedToken;
   tokenB: GuardedPeggedToken;
   guardToleranceBps?: number;
-  /** Curve coefficient scaled by 1e27. Defaults to 0.8e27. */
+  /** Curve coefficient scaled by 1e27. Defaults to the tested 20e27 LST-like profile. */
   linearWidth?: bigint;
 };
 
@@ -26,11 +26,18 @@ export type EncodedMultiplierBounds = {
 };
 
 const BPS = BigInt(10_000);
-const DEFAULT_LINEAR_WIDTH = BigInt('800000000000000000000000000');
+const DEFAULT_LINEAR_WIDTH = 20n * 10n ** 27n;
 
-function multiplierBounds(multiplierE18: bigint, toleranceBps: number): EncodedMultiplierBounds {
-  if (!Number.isInteger(toleranceBps) || toleranceBps < 0 || toleranceBps >= 10_000) {
-    throw new RangeError('guardToleranceBps must be an integer from 0 to 9999');
+function multiplierBounds(
+  multiplierE18: bigint,
+  toleranceBps: number,
+): EncodedMultiplierBounds {
+  if (
+    !Number.isInteger(toleranceBps) ||
+    toleranceBps < 0 ||
+    toleranceBps >= 10_000
+  ) {
+    throw new RangeError("guardToleranceBps must be an integer from 0 to 9999");
   }
 
   const tolerance = BigInt(toleranceBps);
@@ -64,8 +71,16 @@ export function buildGuardedPeggedProgram({
   );
 
   const program = new AquaProgramBuilder()
-    .checkStockMultiplierRange({ token: addressA, minMultiplier: guardA.min, maxMultiplier: guardA.max })
-    .checkStockMultiplierRange({ token: addressB, minMultiplier: guardB.min, maxMultiplier: guardB.max })
+    .checkStockMultiplierRange({
+      token: addressA,
+      minMultiplier: guardA.min,
+      maxMultiplier: guardA.max,
+    })
+    .checkStockMultiplierRange({
+      token: addressB,
+      minMultiplier: guardB.min,
+      maxMultiplier: guardB.max,
+    })
     .peggedSwapGrowPriceRange2D(curve)
     .build()
     .toString() as `0x${string}`;

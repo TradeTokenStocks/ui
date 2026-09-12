@@ -1,10 +1,12 @@
-import { StyleSheet, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, View } from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BottomNav } from '@/components/ui/bottom-nav';
-import { StrategyScene } from '@/features/strategy/strategy-scene';
-import { palette } from '@/theme/tokens';
+import { BottomNav } from "@/components/ui/bottom-nav";
+import { StrategyScene } from "@/features/strategy/strategy-scene";
+import { LiveStrategyScreen } from "@/features/strategy/live-strategy-screen";
+import { useLiveStrategies } from "@/lib/live-strategy-store";
+import { palette } from "@/theme/tokens";
 
 /**
  * The pushed form of a strategy destination (`/strategy/[ticker]`) — what a
@@ -15,24 +17,37 @@ import { palette } from '@/theme/tokens';
  */
 export function ActiveStrategyScreen() {
   const insets = useSafeAreaInsets();
-  const { ticker } = useLocalSearchParams<{ ticker?: string }>();
+  const { ticker, strategyId } = useLocalSearchParams<{
+    ticker?: string;
+    strategyId?: string;
+  }>();
+  const { records } = useLiveStrategies();
+  const liveStrategy = records.find((record) => record.id === strategyId);
 
   return (
     <View style={styles.root}>
-      <StrategyScene
-        insets={insets}
-        {...(ticker ? { ticker } : {})}
-        standalone
-        onBack={() => router.back()}
-      />
+      {liveStrategy ? (
+        <LiveStrategyScreen
+          record={liveStrategy}
+          insets={insets}
+          onBack={() => router.back()}
+        />
+      ) : (
+        <StrategyScene
+          insets={insets}
+          {...(ticker ? { ticker } : {})}
+          standalone
+          onBack={() => router.back()}
+        />
+      )}
 
       <View style={[styles.nav, { bottom: insets.bottom + 20 }]}>
         <BottomNav
           value="strategies"
           onChange={(next) => {
-            if (next === 'portfolio') router.navigate('/');
+            if (next === "portfolio") router.navigate("/");
           }}
-          onCreate={() => router.push('/strategy/create')}
+          onCreate={() => router.push("/strategy/create")}
         />
       </View>
     </View>
@@ -41,5 +56,5 @@ export function ActiveStrategyScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  nav: { position: 'absolute', left: 16, right: 16 },
+  nav: { position: "absolute", left: 16, right: 16 },
 });

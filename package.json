@@ -18,7 +18,8 @@
     "tokens:check": "bun run --cwd apps/web tokens:check",
     "check": "bun run tokens:check && bun run lint && bun run typecheck",
     "verify": "bun run check && bun run build",
-    "doctor:mobile": "bun run --cwd apps/mobile doctor"
+    "doctor:mobile": "bun run --cwd apps/mobile doctor",
+    "deployment:check": "bun run --cwd packages/domain deployment:check"
   },
   "devDependencies": {
     "turbo": "^2.10.12"
