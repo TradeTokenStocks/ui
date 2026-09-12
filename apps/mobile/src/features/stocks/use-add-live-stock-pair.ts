@@ -19,6 +19,7 @@ import {
 } from "viem";
 
 import { robinHoodTestnet } from "@/lib/chains";
+import { waitForSuccess } from "@/lib/transactions";
 import { switchOrAddDeploymentChain } from "@/lib/wallet-chain";
 
 type AddStockStage =
@@ -138,7 +139,7 @@ export function useAddLiveStockPair() {
             }),
             value: 0n,
           });
-          await publicClient.waitForTransactionReceipt({ hash });
+          await waitForSuccess(publicClient, hash);
         };
 
         const mintA = stockMintCall(tokenA, account, amountA);

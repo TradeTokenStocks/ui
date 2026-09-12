@@ -4,6 +4,7 @@ import { formatUnits } from "viem";
 
 import { BackButton } from "@/components/ui/back-button";
 import { PrimaryButton } from "@/components/ui/primary-button";
+import { SecondaryButton } from "@/components/ui/secondary-button";
 import { Body, Display, Num } from "@/components/ui/text";
 import type { LiveStrategyRecord } from "@/lib/live-strategy-store";
 import {
@@ -17,18 +18,30 @@ import {
 } from "@/theme/tokens";
 import { formatUsd } from "@tradetoken/domain";
 
-import { useLiveStrategy } from "./use-live-strategy";
+import { useLiveStrategy, type LiveStrategyStage } from "./use-live-strategy";
 
-const stageLabel = {
+const tradeLabel: Record<LiveStrategyStage, string> = {
   idle: "Run demo trade",
   quoting: "Checking guarded quote…",
   approving: "Approving input token…",
-  swapping: "Submit demo trade…",
+  swapping: "Submitting demo trade…",
   confirming: "Confirming trade…",
   complete: "Run opposite trade",
   rejected: "Retry guarded quote",
+  "updating-multiplier": "Run demo trade",
+  docking: "Run demo trade",
+  docked: "Run demo trade",
   error: "Retry demo trade",
-} as const;
+};
+
+const BUSY_STAGES: readonly LiveStrategyStage[] = [
+  "quoting",
+  "approving",
+  "swapping",
+  "confirming",
+  "updating-multiplier",
+  "docking",
+];
 
 function tokenAmount(value: bigint, decimals: number) {
   return Number(formatUnits(value, decimals)).toLocaleString(undefined, {
@@ -36,8 +49,12 @@ function tokenAmount(value: bigint, decimals: number) {
   });
 }
 
-function multiplier(value: string) {
-  return Number(formatUnits(BigInt(value), 18));
+function multiplierLabel(value: bigint) {
+  return `${Number(formatUnits(value, 18)).toFixed(4)}×`;
+}
+
+function shortHash(hash: string) {
+  return `${hash.slice(0, 8)}…${hash.slice(-6)}`;
 }
 
 export function LiveStrategyScreen({
@@ -50,11 +67,15 @@ export function LiveStrategyScreen({
   onBack: () => void;
 }) {
   const live = useLiveStrategy(record);
-  const busy = ["quoting", "approving", "swapping", "confirming"].includes(
-    live.stage,
-  );
-  const balanceA = live.balances?.a ?? BigInt(record.tokenA.reserve);
-  const balanceB = live.balances?.b ?? BigInt(record.tokenB.reserve);
+  const busy = BUSY_STAGES.includes(live.stage);
+  const closed = record.status === "closed";
+  const balanceA = live.position?.strategy.a ?? BigInt(record.tokenA.reserve);
+  const balanceB = live.position?.strategy.b ?? BigInt(record.tokenB.reserve);
+  const signedA = BigInt(record.tokenA.multiplier);
+  const signedB = BigInt(record.tokenB.multiplier);
+  const currentA = live.position?.multipliers.a ?? signedA;
+  const currentB = live.position?.multipliers.b ?? signedB;
+  const multiplierMoved = currentB !== signedB;
 
   return (
     <View style={styles.root}>
@@ -75,9 +96,13 @@ export function LiveStrategyScreen({
               Same-stock pegged · Aqua
             </Num>
           </View>
-          <View style={styles.liveChip}>
-            <Body size={10.5} weight="semibold" color={palette.positive}>
-              ● Live
+          <View style={[styles.liveChip, closed && styles.closedChip]}>
+            <Body
+              size={10.5}
+              weight="semibold"
+              color={closed ? ink.tertiary : palette.positive}
+            >
+              {closed ? "Closed" : "● Live"}
             </Body>
           </View>
         </View>
@@ -109,8 +134,9 @@ export function LiveStrategyScreen({
           />
         </View>
         <Body size={10.5} color={ink.faint} style={styles.walletNote}>
-          Live ERC-20 wallet balances · Aqua accounts for liquidity without
-          escrow at creation
+          {live.position
+            ? `Aqua strategy balances · wallet holds ${tokenAmount(live.position.wallet.a, record.tokenA.decimals)} ${record.tokenA.symbol} and ${tokenAmount(live.position.wallet.b, record.tokenB.decimals)} ${record.tokenB.symbol} without escrow`
+            : "Balances signed at creation · Aqua accounts for liquidity without escrow"}
         </Body>
 
         <View style={styles.guardCard}>
@@ -132,11 +158,19 @@ export function LiveStrategyScreen({
           <View style={styles.multiplierRows}>
             <Metric
               label={record.tokenA.symbol}
-              value={`${multiplier(record.tokenA.multiplier).toFixed(4)}×`}
+              value={
+                currentA === signedA
+                  ? multiplierLabel(signedA)
+                  : `${multiplierLabel(signedA)} → ${multiplierLabel(currentA)}`
+              }
             />
             <Metric
               label={record.tokenB.symbol}
-              value={`${multiplier(record.tokenB.multiplier).toFixed(4)}×`}
+              value={
+                currentB === signedB
+                  ? multiplierLabel(signedB)
+                  : `${multiplierLabel(signedB)} → ${multiplierLabel(currentB)}`
+              }
             />
             <Metric
               label="Swap fee"
@@ -148,62 +182,99 @@ export function LiveStrategyScreen({
             curve. Move either mock multiplier outside its signed range and the
             next demo quote is rejected before a wallet transaction is sent.
           </Body>
+          {live.canUpdateMultiplier && !closed ? (
+            <SecondaryButton
+              label={
+                multiplierMoved
+                  ? `Restore signed ${record.tokenB.symbol} multiplier`
+                  : `Simulate ${record.tokenB.symbol} corporate action`
+              }
+              disabled={busy}
+              onPress={() =>
+                void live.updateDemoMultiplier(
+                  multiplierMoved ? "restore" : "break",
+                )
+              }
+              style={styles.guardAction}
+            />
+          ) : null}
         </View>
 
-        <View style={styles.tradeCard}>
-          <View style={styles.tradeHeader}>
-            <View>
-              <Body size={13.5} weight="semibold">
-                Demo the strategy
-              </Body>
-              <Num size={11} color={ink.faint} style={styles.sub}>
-                {live.direction} · 5% of the original leg
-              </Num>
+        {closed ? null : (
+          <View style={styles.tradeCard}>
+            <View style={styles.tradeHeader}>
+              <View>
+                <Body size={13.5} weight="semibold">
+                  Demo the strategy
+                </Body>
+                <Num size={11} color={ink.faint} style={styles.sub}>
+                  {live.direction} · 5% of the original leg
+                </Num>
+              </View>
+              <View style={styles.quoteChip}>
+                <Body
+                  size={10.5}
+                  weight="semibold"
+                  color={
+                    live.stage === "rejected"
+                      ? palette.amberBright
+                      : palette.cobaltText
+                  }
+                >
+                  {live.stage === "rejected" ? "Protected" : "Live quote"}
+                </Body>
+              </View>
             </View>
-            <View style={styles.quoteChip}>
-              <Body
-                size={10.5}
-                weight="semibold"
-                color={
-                  live.stage === "rejected"
-                    ? palette.amberBright
-                    : palette.cobaltText
-                }
-              >
-                {live.stage === "rejected" ? "Protected" : "Live quote"}
-              </Body>
-            </View>
+            <PrimaryButton
+              label={tradeLabel[live.stage]}
+              disabled={busy}
+              onPress={() => void live.trade()}
+            />
+            <SecondaryButton
+              label={
+                live.stage === "docking"
+                  ? "Closing strategy…"
+                  : "Close strategy · dock liquidity"
+              }
+              disabled={busy}
+              onPress={() => void live.dock()}
+            />
           </View>
-          <PrimaryButton
-            label={stageLabel[live.stage]}
-            disabled={busy}
-            onPress={() => void live.trade()}
-          />
-          {live.error ? (
-            <Body size={11} color={palette.amberBright} style={styles.status}>
-              {live.error}
-            </Body>
-          ) : null}
-          {live.lastHash ? (
-            <Num size={10.5} color={ink.faint} style={styles.status}>
-              Confirmed · {live.lastHash.slice(0, 10)}…{live.lastHash.slice(-6)}
-            </Num>
-          ) : null}
-        </View>
+        )}
+
+        {live.error ? (
+          <Body size={11} color={palette.amberBright} style={styles.status}>
+            {live.error}
+          </Body>
+        ) : null}
+        {live.lastHash ? (
+          <Num size={10.5} color={ink.faint} style={styles.status}>
+            Confirmed · {shortHash(live.lastHash)}
+          </Num>
+        ) : null}
 
         <View style={styles.receipt}>
-          <Metric
-            label="Strategy hash"
-            value={`${record.strategyHash.slice(0, 8)}…${record.strategyHash.slice(-6)}`}
-          />
+          <Metric label="Strategy hash" value={shortHash(record.strategyHash)} />
           <Metric
             label="Open transaction"
-            value={`${record.shipTransactionHash.slice(0, 8)}…${record.shipTransactionHash.slice(-6)}`}
+            value={shortHash(record.shipTransactionHash)}
           />
           <Metric
             label="Created"
             value={new Date(record.createdAt).toLocaleString()}
           />
+          {record.dockTransactionHash ? (
+            <Metric
+              label="Close transaction"
+              value={shortHash(record.dockTransactionHash)}
+            />
+          ) : null}
+          {record.closedAt ? (
+            <Metric
+              label="Closed"
+              value={new Date(record.closedAt).toLocaleString()}
+            />
+          ) : null}
         </View>
       </ScrollView>
     </View>
@@ -268,6 +339,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(74,222,139,.22)",
     backgroundColor: "rgba(74,222,139,.1)",
   },
+  closedChip: { borderColor: stroke.hairline, backgroundColor: fill.subtle },
   summary: { marginTop: 30 },
   value: { marginTop: 3 },
   balanceGrid: { flexDirection: "row", gap: 10, marginTop: 22 },
@@ -320,6 +392,7 @@ const styles = StyleSheet.create({
     borderTopColor: stroke.hairline,
   },
   guardCopy: { marginTop: 14, lineHeight: 17 },
+  guardAction: { marginTop: 14 },
   tradeCard: {
     gap: 15,
     marginTop: 12,
@@ -341,7 +414,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: fill.subtle,
   },
-  status: { textAlign: "center", lineHeight: 16 },
+  status: { textAlign: "center", lineHeight: 16, marginTop: 12 },
   receipt: {
     gap: 9,
     marginTop: 18,

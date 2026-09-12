@@ -26,6 +26,7 @@ import {
   saveLiveStrategy,
   type LiveStrategyRecord,
 } from "@/lib/live-strategy-store";
+import { waitForSuccess } from "@/lib/transactions";
 import { switchOrAddDeploymentChain } from "@/lib/wallet-chain";
 
 export type LivePositionStage =
@@ -174,7 +175,7 @@ export function useOpenLivePosition() {
             }),
             value: 0n,
           });
-          await publicClient.waitForTransactionReceipt({ hash });
+          await waitForSuccess(publicClient, hash);
         };
 
         if (allowanceA < reserveA) await approve(tokenA.address, "approve-a");
@@ -205,9 +206,7 @@ export function useOpenLivePosition() {
           value: position.ship.value,
         });
         setStage("confirming");
-        await publicClient.waitForTransactionReceipt({
-          hash: shipTransactionHash,
-        });
+        await waitForSuccess(publicClient, shipTransactionHash);
 
         const record: LiveStrategyRecord = {
           id: `${deployment.chainId}:${position.strategyHash}`,

@@ -50,7 +50,10 @@ const FIELD_HEIGHT = 220;
 export function StrategyListScene({ insets }: { insets: EdgeInsets }) {
   const { width } = useWindowDimensions();
   const { records: liveStrategies } = useLiveStrategies();
-  const openCount = strategies.length + liveStrategies.length;
+  const openLiveStrategies = liveStrategies.filter(
+    (strategy) => strategy.status !== "closed",
+  );
+  const openCount = strategies.length + openLiveStrategies.length;
 
   return (
     <View style={styles.root}>
@@ -110,7 +113,7 @@ export function StrategyListScene({ insets }: { insets: EdgeInsets }) {
           </View>
         ) : (
           <View style={styles.list}>
-            {liveStrategies.map((strategy) => (
+            {openLiveStrategies.map((strategy) => (
               <LiveStrategyCard key={strategy.id} strategy={strategy} />
             ))}
             {strategies.map((strategy) => (

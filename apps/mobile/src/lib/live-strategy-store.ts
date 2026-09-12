@@ -29,6 +29,9 @@ export type LiveStrategyRecord = {
   feeBps: number;
   guardToleranceBps: number;
   createdAt: string;
+  status?: "open" | "closed";
+  dockTransactionHash?: `0x${string}`;
+  closedAt?: string;
 };
 
 let memoryCache: LiveStrategyRecord[] = [];
@@ -67,6 +70,22 @@ export async function saveLiveStrategy(
   ];
   publish(records);
   await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(records));
+}
+
+export async function updateLiveStrategy(
+  id: string,
+  patch: Partial<LiveStrategyRecord>,
+): Promise<LiveStrategyRecord> {
+  const existing = await loadLiveStrategies();
+  const current = existing.find((record) => record.id === id);
+  if (!current) throw new Error("Live strategy metadata was not found.");
+  const updated = { ...current, ...patch };
+  const records = existing.map((record) =>
+    record.id === id ? updated : record,
+  );
+  publish(records);
+  await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(records));
+  return updated;
 }
 
 export function useLiveStrategies() {

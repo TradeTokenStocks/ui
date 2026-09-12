@@ -41,6 +41,7 @@ import {
 } from '@tradetoken/domain/fixtures';
 import { useBrokerageHoldings } from '@/features/connections/hooks/use-brokerage-holdings';
 import { useAddedStockHoldings } from '@/features/stocks/stock-holdings-store';
+import { useWalletStockHoldings } from '@/features/stocks/use-wallet-stock-holdings';
 
 /** Height of the dither field at the top of the screen. */
 const FIELD_HEIGHT = 380;
@@ -71,6 +72,7 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
   const [segment, setSegment] = useState('holdings');
   const added = useAddedStockHoldings();
   const brokerage = useBrokerageHoldings();
+  const walletStocks = useWalletStockHoldings();
   const { user } = usePrivy();
 
   const emailAccount = user?.linked_accounts?.find((acc) => acc.type === 'email');
@@ -88,7 +90,9 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
    * headline number never claims to know something the connection cannot tell
    * it right now.
    */
-  const walletAllocatableUsd = totals.walletAllocatableUsd + addedTotalUsd;
+  const walletAllocatableUsd = walletStocks.live
+    ? walletStocks.totalUsd
+    : totals.walletAllocatableUsd + addedTotalUsd;
   const brokerageObservedUsd = brokerage.connected ? brokerage.totalValueUsd : 0;
   const exposure = splitUsd(walletAllocatableUsd + brokerageObservedUsd);
   const visibleCompanies: CompanyExposure[] = [
