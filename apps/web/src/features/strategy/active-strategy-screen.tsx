@@ -1,18 +1,21 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import {
   bandMarket,
+  calculateMultiplierBounds,
   formatLedgerAmount,
   formatNumber,
   formatPercent,
   formatUsd,
+  resolveCompany,
   resolveStrategy,
   type LedgerRow,
 } from '@tradetoken/domain';
-import { strategies, strategyActivity } from '@tradetoken/domain/fixtures';
+import { companyDetails, strategies, strategyActivity } from '@tradetoken/domain/fixtures';
+import Link from 'next/link';
+import { useMemo, useState } from 'react';
 
+import { DitherField } from '@/components/dither-field';
 import {
   Chip,
   Display,
@@ -23,7 +26,6 @@ import {
   Stat,
 } from '@/components/primitives';
 import { ScreenField } from '@/components/screen-field';
-import { DitherField } from '@/components/dither-field';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
@@ -37,6 +39,10 @@ const FILTERS = [
 export function ActiveStrategyScreen({ ticker }: { ticker: string }) {
   const [filter, setFilter] = useState<string>('all');
   const strategy = resolveStrategy(strategies, ticker);
+
+  const company = resolveCompany(companyDetails, strategy.ticker, 'NVDA');
+  const multiplier = company.multiplier ?? 1.0;
+  const guardBounds = calculateMultiplierBounds(multiplier, 5);
 
   const rows = useMemo(
     () =>
@@ -70,6 +76,7 @@ export function ActiveStrategyScreen({ ticker }: { ticker: string }) {
             <PulseDot />
             In band
           </Chip>
+          <Chip tone='cobalt'>Guard active · {multiplier === 1 ? '1.000x' : `${multiplier}x`}</Chip>
         </div>
         <Num className="mt-1.5 block text-[12px] text-ink-quaternary">
           Open {strategy.openDays} days · opened from executable exposure only
@@ -136,13 +143,14 @@ export function ActiveStrategyScreen({ ticker }: { ticker: string }) {
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-3 gap-4 border-t border-stroke-hairline pt-5">
+        <div className="mt-6 grid grid-cols-4 gap-4 border-t border-stroke-hairline pt-5">
           <Stat label="Fills" value={formatNumber(strategy.fills)} />
           <Stat
             label="Fees earned"
             value={formatUsd(strategy.feesEarnedUsd, { digits: 2 })}
           />
           <Stat label="Time in band" value={`${strategy.timeInBandPct}%`} />
+          <Stat label='Multiplier guard' value={`${guardBounds.min.toFixed(2)}x — ${guardBounds.max.toFixed(2)}x`}/>
         </div>
       </Panel>
 
