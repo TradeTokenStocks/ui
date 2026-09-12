@@ -30,6 +30,7 @@ import {
 import { cn } from '@/lib/utils';
 
 import { TokenMark } from './components/aqua-token-select-dialog';
+import { addCreatedStrategy } from './created-strategies-store';
 
 function numericParam(value: string | null, fallback: number) {
   const parsed = Number(value);
@@ -154,6 +155,16 @@ function ConcentratedStrategyReview() {
               disabled={opening}
               onClick={() => {
                 setOpening(true);
+                addCreatedStrategy({
+                  ticker: company.ticker,
+                  mechanism: 'concentrated',
+                  pairLabel: bandMarket(company.ticker),
+                  depositedUsd: allocation,
+                  feeTierPct: activeStrategy.feeTierPct,
+                  guardPct: 5,
+                  lowerValue: projection.lowerUsd,
+                  upperValue: projection.upperUsd,
+                });
                 router.push('/strategies');
               }}>
               {opening ? 'Opening…' : 'Confirm'}
@@ -240,7 +251,24 @@ function PeggedStrategyReview() {
           </dl>
           <DialogFooter>
             <DialogClose asChild><Button variant="ghost">Not now</Button></DialogClose>
-            <Button disabled={opening} onClick={() => { setOpening(true); router.push('/strategies'); }}>{opening ? 'Deploying…' : 'Confirm sandbox'}</Button>
+            <Button
+              disabled={opening}
+              onClick={() => {
+                setOpening(true);
+                addCreatedStrategy({
+                  ticker: tokenA.ticker,
+                  mechanism: 'pegged',
+                  pairLabel: `${tokenA.symbol} / ${tokenB.symbol}`,
+                  depositedUsd: total,
+                  feeTierPct: feeBps / 100,
+                  guardPct: guard,
+                  lowerValue: ratio * (1 - guard / 100),
+                  upperValue: ratio * (1 + guard / 100),
+                });
+                router.push('/strategies');
+              }}>
+              {opening ? 'Deploying…' : 'Confirm sandbox'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
