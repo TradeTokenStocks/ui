@@ -1,10 +1,16 @@
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import type { EdgeInsets } from 'react-native-safe-area-context';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import type { EdgeInsets } from "react-native-safe-area-context";
 
-import { DitherField } from '@/components/dither-field';
-import { Body, Display, Num } from '@/components/ui/text';
+import { DitherField } from "@/components/dither-field";
+import { Body, Display, Num } from "@/components/ui/text";
 import {
   bandMarket,
   formatNumber,
@@ -12,10 +18,23 @@ import {
   formatUsd,
   isGain,
   strategyMechanismLabel,
-} from '@tradetoken/domain';
-import { strategies } from '@tradetoken/domain/fixtures';
-import type { StrategySummary } from '@tradetoken/domain';
-import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
+} from "@tradetoken/domain";
+import { strategies } from "@tradetoken/domain/fixtures";
+import type { StrategySummary } from "@tradetoken/domain";
+import {
+  useLiveStrategies,
+  type LiveStrategyRecord,
+} from "@/lib/live-strategy-store";
+import {
+  fill,
+  ink,
+  palette,
+  radius,
+  ramps,
+  shadow,
+  space,
+  stroke,
+} from "@/theme/tokens";
 
 /** Height of the dither field at the top of the screen. */
 const FIELD_HEIGHT = 220;
@@ -30,13 +49,25 @@ const FIELD_HEIGHT = 220;
  */
 export function StrategyListScene({ insets }: { insets: EdgeInsets }) {
   const { width } = useWindowDimensions();
+  const { records: liveStrategies } = useLiveStrategies();
+  const openLiveStrategies = liveStrategies.filter(
+    (strategy) => strategy.status !== "closed",
+  );
+  const openCount = strategies.length + openLiveStrategies.length;
 
   return (
     <View style={styles.root}>
-      <View style={[styles.field, { height: FIELD_HEIGHT }]} pointerEvents="none">
-        <DitherField width={width} height={FIELD_HEIGHT} ramp={ramps.strategy} />
+      <View
+        style={[styles.field, { height: FIELD_HEIGHT }]}
+        pointerEvents="none"
+      >
+        <DitherField
+          width={width}
+          height={FIELD_HEIGHT}
+          ramp={ramps.strategy}
+        />
         <LinearGradient
-          colors={['rgba(10,11,13,0)', 'rgba(10,11,13,0.82)', palette.bg]}
+          colors={["rgba(10,11,13,0)", "rgba(10,11,13,0.82)", palette.bg]}
           locations={[0, 0.55, 1]}
           style={styles.fieldFade}
         />
@@ -44,26 +75,34 @@ export function StrategyListScene({ insets }: { insets: EdgeInsets }) {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 126 }}>
+        contentContainerStyle={{
+          paddingTop: insets.top + 8,
+          paddingBottom: insets.bottom + 126,
+        }}
+      >
         <View style={styles.header}>
           <View style={styles.headerTitle}>
             <Display size={27}>Strategies</Display>
             <Num size={12.5} color={ink.quaternary} style={styles.headerSub}>
-              {strategies.length} open
+              {openCount} open
             </Num>
           </View>
           <Pressable
-            onPress={() => router.push('/strategy/create')}
+            onPress={() => router.push("/strategy/create")}
             accessibilityRole="button"
             accessibilityLabel="New strategy"
             hitSlop={8}
-            style={({ pressed }) => [styles.newButton, pressed && styles.newButtonPressed]}>
+            style={({ pressed }) => [
+              styles.newButton,
+              pressed && styles.newButtonPressed,
+            ]}
+          >
             <View style={styles.newButtonBarH} />
             <View style={styles.newButtonBarV} />
           </Pressable>
         </View>
 
-        {strategies.length === 0 ? (
+        {openCount === 0 ? (
           <View style={styles.empty}>
             <Body size={14} weight="semibold">
               No open strategies
@@ -74,6 +113,9 @@ export function StrategyListScene({ insets }: { insets: EdgeInsets }) {
           </View>
         ) : (
           <View style={styles.list}>
+            {openLiveStrategies.map((strategy) => (
+              <LiveStrategyCard key={strategy.id} strategy={strategy} />
+            ))}
             {strategies.map((strategy) => (
               <StrategyCard key={strategy.ticker} strategy={strategy} />
             ))}
@@ -84,18 +126,90 @@ export function StrategyListScene({ insets }: { insets: EdgeInsets }) {
   );
 }
 
+function LiveStrategyCard({ strategy }: { strategy: LiveStrategyRecord }) {
+  return (
+    <Pressable
+      onPress={() =>
+        router.push({
+          pathname: "/strategy/[ticker]",
+          params: {
+            ticker: strategy.ticker.toLowerCase(),
+            strategyId: strategy.id,
+          },
+        })
+      }
+      style={({ pressed }) => [
+        styles.card,
+        styles.liveCard,
+        pressed && { backgroundColor: fill.press },
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={`${strategy.ticker} live Aqua strategy. Position ${formatUsd(strategy.allocationUsd)}.`}
+    >
+      <View style={styles.cardTop}>
+        <View style={styles.cardTitle}>
+          <View style={styles.cardTitleRow}>
+            <Body size={14.5} weight="semibold">
+              {strategy.tokenA.symbol} / {strategy.tokenB.symbol}
+            </Body>
+            <View style={styles.mechanismChip}>
+              <Body size={10.5} weight="semibold" color={ink.tertiary}>
+                PeggedSwap
+              </Body>
+            </View>
+          </View>
+          <Num size={11.5} color={ink.quaternary} style={styles.cardSub}>
+            {new Date(strategy.createdAt).toLocaleDateString()} · Robinhood
+            Testnet
+          </Num>
+        </View>
+        <View style={styles.liveChip}>
+          <Body size={11} weight="semibold" color={palette.cobaltText}>
+            ● Onchain
+          </Body>
+        </View>
+      </View>
+      <View style={styles.cardBottom}>
+        <View>
+          <Num size={19} weight="medium">
+            {formatUsd(strategy.allocationUsd, { digits: 2 })}
+          </Num>
+          <Num size={12} color={ink.quaternary} style={styles.cardSub}>
+            ±{strategy.guardToleranceBps / 100}% multiplier guard
+          </Num>
+        </View>
+        <View style={styles.cardStats}>
+          <Num size={12} color={ink.quaternary}>
+            {(strategy.feeBps / 100).toFixed(2)}% fee
+          </Num>
+          <Num size={12} color={ink.quaternary}>
+            Aqua custody
+          </Num>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
 function StrategyCard({ strategy }: { strategy: StrategySummary }) {
   // Approximate mark-to-market for the list row. The detail screen simulates
   // this live; here it only needs to be directionally right at a glance.
-  const positionValue = strategy.depositedUsd * (1 + strategy.gainVsDepositPct / 100);
-  const gainColor = isGain(strategy.gainVsDepositPct) ? palette.positive : ink.quaternary;
+  const positionValue =
+    strategy.depositedUsd * (1 + strategy.gainVsDepositPct / 100);
+  const gainColor = isGain(strategy.gainVsDepositPct)
+    ? palette.positive
+    : ink.quaternary;
 
   return (
     <Pressable
       onPress={() => router.push(`/strategy/${strategy.ticker.toLowerCase()}`)}
-      style={({ pressed }) => [styles.card, pressed && { backgroundColor: fill.press }]}
+      style={({ pressed }) => [
+        styles.card,
+        pressed && { backgroundColor: fill.press },
+      ]}
       accessibilityRole="button"
-      accessibilityLabel={`${strategy.ticker}. ${bandMarket(strategy.ticker)}. Open ${strategy.openDays} days. Position ${formatUsd(positionValue)}, ${formatPercent(strategy.gainVsDepositPct, 2)} vs deposit.`}>
+      accessibilityLabel={`${strategy.ticker}. ${bandMarket(strategy.ticker)}. Open ${strategy.openDays} days. Position ${formatUsd(positionValue)}, ${formatPercent(strategy.gainVsDepositPct, 2)} vs deposit.`}
+    >
       <View style={styles.cardTop}>
         <View style={styles.cardTitle}>
           <View style={styles.cardTitleRow}>
@@ -109,7 +223,8 @@ function StrategyCard({ strategy }: { strategy: StrategySummary }) {
             </View>
           </View>
           <Num size={11.5} color={ink.quaternary} style={styles.cardSub}>
-            Open {strategy.openDays} days · {formatUsd(strategy.lowerUsd, { digits: 2 })} —{' '}
+            Open {strategy.openDays} days ·{" "}
+            {formatUsd(strategy.lowerUsd, { digits: 2 })} —{" "}
             {formatUsd(strategy.upperUsd, { digits: 2 })}
           </Num>
         </View>
@@ -144,31 +259,55 @@ function StrategyCard({ strategy }: { strategy: StrategySummary }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
-  field: { position: 'absolute', left: 0, right: 0, top: 0, overflow: 'hidden' },
-  fieldFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 150 },
+  field: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    overflow: "hidden",
+  },
+  fieldFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 150,
+  },
 
   header: {
     paddingHorizontal: space.gutter,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginTop: 8,
   },
-  headerTitle: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+  headerTitle: { flexDirection: "row", alignItems: "baseline", gap: 10 },
   headerSub: { marginBottom: 2 },
   newButton: {
     width: 34,
     height: 34,
     borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: fill.subtle,
     borderWidth: 1,
     borderColor: stroke.hairline,
   },
   newButtonPressed: { backgroundColor: fill.press },
-  newButtonBarH: { position: 'absolute', width: 14, height: 2, borderRadius: 1, backgroundColor: ink.primary },
-  newButtonBarV: { position: 'absolute', width: 2, height: 14, borderRadius: 1, backgroundColor: ink.primary },
+  newButtonBarH: {
+    position: "absolute",
+    width: 14,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: ink.primary,
+  },
+  newButtonBarV: {
+    position: "absolute",
+    width: 2,
+    height: 14,
+    borderRadius: 1,
+    backgroundColor: ink.primary,
+  },
 
   empty: {
     marginHorizontal: 12,
@@ -190,9 +329,15 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     ...shadow.card,
   },
-  cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  liveCard: { borderColor: "rgba(94,124,255,0.32)" },
+  cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   cardTitle: { flex: 1 },
-  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  cardTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
   mechanismChip: {
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -207,17 +352,25 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: 'rgba(74,222,139,0.22)',
-    backgroundColor: 'rgba(74,222,139,0.1)',
+    borderColor: "rgba(74,222,139,0.22)",
+    backgroundColor: "rgba(74,222,139,0.1)",
+  },
+  liveChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: "rgba(94,124,255,0.28)",
+    backgroundColor: "rgba(94,124,255,0.1)",
   },
   cardBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
     marginTop: 16,
     paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: stroke.hairline,
   },
-  cardStats: { alignItems: 'flex-end', gap: 3 },
+  cardStats: { alignItems: "flex-end", gap: 3 },
 });
