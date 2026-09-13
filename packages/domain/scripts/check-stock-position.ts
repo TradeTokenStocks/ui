@@ -30,10 +30,12 @@ import {
   buildSwapCall,
 } from "../src/live-aqua";
 
-const privateKey = process.env.STOCK_POSITION_CHECK_PRIVATE_KEY as Hex | undefined;
-if (!privateKey) {
+const makerPrivateKey = (process.env.STOCK_POSITION_MAKER_PRIVATE_KEY ??
+  process.env.STOCK_POSITION_CHECK_PRIVATE_KEY) as Hex | undefined;
+const takerPrivateKey = process.env.STOCK_POSITION_TAKER_PRIVATE_KEY as Hex | undefined;
+if (!makerPrivateKey || !takerPrivateKey) {
   throw new Error(
-    "Set STOCK_POSITION_CHECK_PRIVATE_KEY to a funded test-only key. The script never prints it.",
+    "Set STOCK_POSITION_MAKER_PRIVATE_KEY and STOCK_POSITION_TAKER_PRIVATE_KEY to funded test-only keys. The script never prints them.",
   );
 }
 
@@ -41,7 +43,8 @@ const deployment = requireLiveDeployment(hackathonDeployment);
 const ticker = (process.env.STOCK_POSITION_CHECK_TICKER ?? "NVDA").toUpperCase();
 const tokenA = deployedStock(deployment, `xstock-${ticker.toLowerCase()}`);
 const tokenB = deployedStock(deployment, `ondo-${ticker.toLowerCase()}`);
-const account = privateKeyToAccount(privateKey);
+const maker = privateKeyToAccount(makerPrivateKey);
+const taker = privateKeyToAccount(takerPrivateKey);
 const chain = defineChain({
   id: deployment.chainId,
   name: deployment.chainName,
@@ -50,8 +53,13 @@ const chain = defineChain({
   testnet: true,
 });
 const publicClient = createPublicClient({ chain, transport: http(deployment.rpcUrl) });
-const walletClient = createWalletClient({
-  account,
+const makerClient = createWalletClient({
+  account: maker,
+  chain,
+  transport: http(deployment.rpcUrl),
+});
+const takerClient = createWalletClient({
+  account: taker,
   chain,
   transport: http(deployment.rpcUrl),
 });
@@ -72,12 +80,12 @@ const readMultiplier = (token: typeof tokenA) =>
     abi: stockTokenAbi,
     functionName: token.multiplierRead,
   });
-const readBalance = (token: typeof tokenA) =>
+const readBalance = (token: typeof tokenA, address: Hex) =>
   publicClient.readContract({
     address: token.address,
     abi: stockTokenAbi,
     functionName: "balanceOf",
-    args: [account.address],
+    args: [address],
   });
 const readRaw = (strategyHash: Hex, token: typeof tokenA) =>
   publicClient.readContract({
@@ -85,28 +93,32 @@ const readRaw = (strategyHash: Hex, token: typeof tokenA) =>
     abi: aquaAbi,
     functionName: "rawBalances",
     args: [
-      account.address,
+      maker.address,
       deployment.contracts.aquaSwapVmRouter,
       strategyHash,
       token.address,
     ],
   });
 
-const [liveMultiplierA, liveMultiplierB, balanceA, balanceB] = await Promise.all([
+const [liveMultiplierA, liveMultiplierB, makerBalanceA, makerBalanceB, takerBalanceA] = await Promise.all([
   readMultiplier(tokenA),
   readMultiplier(tokenB),
-  readBalance(tokenA),
-  readBalance(tokenB),
+  readBalance(tokenA, maker.address),
+  readBalance(tokenB, maker.address),
+  readBalance(tokenA, taker.address),
 ]);
-if (balanceA < reserveA + tradeAmount || balanceB < reserveB) {
+if (makerBalanceA < reserveA || makerBalanceB < reserveB) {
   throw new Error(
-    `${account.address} needs at least 0.55 ${tokenA.symbol} and 0.5 ${tokenB.symbol}.`,
+    `Maker ${maker.address} needs at least 0.5 ${tokenA.symbol} and 0.5 ${tokenB.symbol}.`,
   );
+}
+if (takerBalanceA < tradeAmount) {
+  throw new Error(`Taker ${taker.address} needs at least 0.05 ${tokenA.symbol}.`);
 }
 
 for (const token of [tokenA, tokenB]) {
   await wait(
-    await walletClient.sendTransaction({
+    await makerClient.sendTransaction({
       to: token.address,
       data: encodeFunctionData({
         abi: stockTokenAbi,
@@ -123,7 +135,7 @@ for (const token of [tokenA, tokenB]) {
 const initialized = liveMultiplierA > 0n && liveMultiplierB > 0n;
 const position = buildLivePeggedPosition({
   deployment,
-  maker: account.address,
+  maker: maker.address,
   tokenA,
   tokenB,
   reserveA,
@@ -135,7 +147,7 @@ const position = buildLivePeggedPosition({
   salt: BigInt(Date.now()),
 });
 const shipHash = await wait(
-  await walletClient.sendTransaction({
+  await makerClient.sendTransaction({
     to: position.ship.to,
     data: position.ship.data,
     value: position.ship.value,
@@ -160,7 +172,7 @@ const quote = buildQuoteCall({
 let swapHash: Hash | undefined;
 try {
   const quoteResult = await publicClient.call({
-    account: account.address,
+    account: taker.address,
     to: quote.to,
     data: quote.data,
   });
@@ -171,7 +183,7 @@ try {
     data: quoteResult.data,
   });
   await wait(
-    await walletClient.sendTransaction({
+    await takerClient.sendTransaction({
       to: tokenA.address,
       data: encodeFunctionData({
         abi: stockTokenAbi,
@@ -189,7 +201,7 @@ try {
     amount: tradeAmount,
   });
   swapHash = await wait(
-    await walletClient.sendTransaction({
+    await takerClient.sendTransaction({
       to: swap.to,
       data: swap.data,
       value: swap.value,
@@ -220,8 +232,10 @@ const dock = buildDockCall({
   tokens: [tokenA.address, tokenB.address],
 });
 const dockHash = await wait(
-  await walletClient.sendTransaction({ to: dock.to, data: dock.data, value: dock.value }),
+  await makerClient.sendTransaction({ to: dock.to, data: dock.data, value: dock.value }),
 );
+console.log(`✓ Maker: ${maker.address}`);
+console.log(`✓ Taker: ${taker.address}`);
 console.log(`✓ Registered ${tokenA.symbol}/${tokenB.symbol}: ${shipHash}`);
 if (swapHash) console.log(`✓ Swap: ${swapHash}`);
 console.log(`✓ Docked test position: ${dockHash}`);
