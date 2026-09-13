@@ -16,6 +16,7 @@ import {
 } from "./contracts";
 import {
   buildDockCall,
+  buildLiveConcentratedPosition,
   buildLivePeggedPosition,
   buildQuoteCall,
   buildSwapCall,
@@ -60,6 +61,18 @@ const deployment: LiveHackathonDeployment = {
     aqua: "0x3000000000000000000000000000000000000003",
     aquaSwapVmRouter: "0x4000000000000000000000000000000000000004",
   },
+  referenceTokens: [
+    {
+      symbol: "WETH",
+      address: "0x5000000000000000000000000000000000000005",
+      decimals: 18,
+    },
+    {
+      symbol: "USDC",
+      address: "0x6000000000000000000000000000000000000006",
+      decimals: 6,
+    },
+  ],
   strategy: { linearWidth: 20n * 10n ** 27n },
   stocks: [tokenA, tokenB],
 };
@@ -154,6 +167,36 @@ describe("live Aqua integration", () => {
         tokenDecimals: 18,
       }),
     ).toBe(374_640_000n);
+  });
+
+  test("builds a standard concentrated WETH/USDC strategy", () => {
+    const [weth, usdc] = deployment.referenceTokens;
+    if (!weth || !usdc) throw new Error("Reference tokens are required");
+    const position = buildLiveConcentratedPosition({
+      deployment,
+      maker: "0x7000000000000000000000000000000000000007",
+      tokenA: weth,
+      tokenB: usdc,
+      reserveA: 1n * 10n ** 18n,
+      reserveB: 2_500n * 10n ** 6n,
+      rawPriceMin: 10n ** 18n / 3_500n,
+      rawPriceMax: 10n ** 18n / 1_500n,
+    });
+
+    expect(position.ship.to).toBe(deployment.contracts.aqua);
+    expect(position.strategyHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(decodeLiveOrder(position.encodedOrder).encode().toString()).toBe(
+      position.encodedOrder,
+    );
+    expect(
+      buildQuoteCall({
+        deployment,
+        position,
+        tokenIn: usdc.address,
+        tokenOut: weth.address,
+        amount: 100n * 10n ** 6n,
+      }).to,
+    ).toBe(deployment.contracts.aquaSwapVmRouter);
   });
 
   test("encodes an Aqua dock call for the strategy tokens", () => {

@@ -8,7 +8,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { DividendPreference, TokenizedStock } from "@tradetoken/domain";
+import {
+  hackathonDeployment,
+  type DividendPreference,
+  type TokenizedStock,
+} from "@tradetoken/domain";
 import {
   pairedRepresentations,
   tokenizedStocks,
@@ -307,7 +311,7 @@ export function AddStockScreen() {
                 label="Network"
                 value={
                   live.deploymentReady
-                    ? "Robinhood Testnet"
+                    ? hackathonDeployment.chainName
                     : "Deployment pending"
                 }
               />

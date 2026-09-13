@@ -21,6 +21,7 @@ import {
   calculateMultiplierBounds,
   formatNumber,
   formatUsd,
+  hackathonDeployment,
   projectBand,
   resolveCompany,
 } from "@tradetoken/domain";
@@ -227,7 +228,9 @@ export function StrategyReviewScreen() {
             </Body>
           </LinearGradient>
           <Num size={12} color={ink.secondary} style={styles.walletAddress}>
-            {liveMode ? `Robinhood · ${walletLabel}` : "Sandbox · 0x7A4C…9E21"}
+            {liveMode
+              ? `${hackathonDeployment.chainName} · ${walletLabel}`
+              : "Sandbox · 0x7A4C…9E21"}
           </Num>
           <View style={styles.custodyChip}>
             <Body size={11} weight="semibold" color={palette.positive}>
@@ -287,7 +290,7 @@ export function StrategyReviewScreen() {
           <Fact label="Aqua fee tier" value={`${(feeBps / 100).toFixed(2)}%`} />
           <Fact
             label="Network"
-            value={liveMode ? "Robinhood Testnet" : "Sandbox"}
+            value={liveMode ? hackathonDeployment.chainName : "Sandbox"}
           />
           <Fact label="You can exit" value="Any time" />
         </View>

@@ -16,6 +16,7 @@ import {
   formatNumber,
   formatPercent,
   formatUsd,
+  hackathonDeployment,
   isGain,
   rescaleStrategyPrices,
   strategyMechanismLabel,
@@ -162,8 +163,8 @@ function LiveStrategyCard({ strategy }: { strategy: LiveStrategyRecord }) {
             </View>
           </View>
           <Num size={11.5} color={ink.quaternary} style={styles.cardSub}>
-            {new Date(strategy.createdAt).toLocaleDateString()} · Robinhood
-            Testnet
+            {new Date(strategy.createdAt).toLocaleDateString()} ·{" "}
+            {hackathonDeployment.chainName}
           </Num>
         </View>
         <View style={styles.liveChip}>
@@ -198,9 +199,13 @@ function StrategyCard({ strategy }: { strategy: StrategySummary }) {
   const splitRescaled = useSplitRescaled();
   const splitAffected = strategy.ticker === nvdaSplit.ticker;
   const halted = splitAffected && !splitRescaled;
-  const band = splitAffected && splitRescaled
-    ? rescaleStrategyPrices(strategy, nvdaSplit.multiplierAfter / nvdaSplit.multiplierBefore)
-    : strategy;
+  const band =
+    splitAffected && splitRescaled
+      ? rescaleStrategyPrices(
+          strategy,
+          nvdaSplit.multiplierAfter / nvdaSplit.multiplierBefore,
+        )
+      : strategy;
   // Approximate mark-to-market for the list row. The detail screen simulates
   // this live; here it only needs to be directionally right at a glance.
   const positionValue =

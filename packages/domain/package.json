@@ -10,6 +10,7 @@
   },
   "scripts": {
     "deployment:check": "bun run scripts/check-deployment.ts",
+    "infrastructure:check": "bun run scripts/check-deployment.ts --infrastructure-only",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

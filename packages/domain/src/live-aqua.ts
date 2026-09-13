@@ -6,6 +6,7 @@ import {
 import {
   Address,
   AquaProgramBuilder,
+  AquaXYCAmmStrategy,
   HexString,
   MakerTraits,
   Order,
@@ -49,6 +50,26 @@ export type LivePeggedPosition = {
   program: `0x${string}`;
   ship: EncodedCall;
   guards: readonly [EncodedMultiplierBounds, EncodedMultiplierBounds];
+};
+
+export type LiveConcentratedPositionInput = {
+  deployment: LiveHackathonDeployment;
+  maker: ContractAddress;
+  tokenA: Pick<DeployedStockToken, "address" | "decimals">;
+  tokenB: Pick<DeployedStockToken, "address" | "decimals">;
+  reserveA: bigint;
+  reserveB: bigint;
+  /** Raw P = token with greater address / token with lower address, scaled 1e18. */
+  rawPriceMin: bigint;
+  rawPriceMax: bigint;
+};
+
+export type LiveConcentratedPosition = {
+  order: Order;
+  encodedOrder: `0x${string}`;
+  strategyHash: `0x${string}`;
+  program: `0x${string}`;
+  ship: EncodedCall;
 };
 
 export type EncodedMultiplierBounds = {
@@ -242,6 +263,57 @@ export function buildLivePeggedPosition({
     program: program.toString(),
     ship: asCall(ship),
     guards: [guardA, guardB],
+  };
+}
+
+/** Build a standard concentrated XYC strategy for volatile pairs such as WETH/USDC. */
+export function buildLiveConcentratedPosition({
+  deployment,
+  maker,
+  tokenA,
+  tokenB,
+  reserveA,
+  reserveB,
+  rawPriceMin,
+  rawPriceMax,
+}: LiveConcentratedPositionInput): LiveConcentratedPosition {
+  if (tokenA.address === tokenB.address)
+    throw new Error("Concentrated positions require two distinct tokens");
+  if (reserveA <= ZERO || reserveB <= ZERO)
+    throw new RangeError("Both reserves must be greater than zero");
+  if (rawPriceMin <= ZERO || rawPriceMax <= rawPriceMin)
+    throw new RangeError("Raw price bounds must be positive and increasing");
+
+  const program = AquaXYCAmmStrategy.newConcentrate({
+    rawPriceMin,
+    rawPriceMax,
+  }).build();
+  const order = Order.new({
+    maker: new Address(maker),
+    traits: MakerTraits.default(),
+    program,
+  });
+  const encodedOrder = order.encode();
+  const aquaOrder = new AquaHexString(encodedOrder.toString());
+  const aqua = new AquaProtocolContract(
+    new AquaAddress(deployment.contracts.aqua),
+  );
+  const ship = aqua.ship({
+    app: new AquaAddress(deployment.contracts.aquaSwapVmRouter),
+    strategy: aquaOrder,
+    amountsAndTokens: [
+      { token: new AquaAddress(tokenA.address), amount: reserveA },
+      { token: new AquaAddress(tokenB.address), amount: reserveB },
+    ],
+  });
+
+  return {
+    order,
+    encodedOrder: encodedOrder.toString(),
+    strategyHash:
+      AquaProtocolContract.calculateStrategyHash(aquaOrder).toString(),
+    program: program.toString(),
+    ship: asCall(ship),
   };
 }
 

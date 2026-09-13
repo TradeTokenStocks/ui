@@ -1,4 +1,5 @@
-import { ABI } from "@1inch/aqua-sdk";
+import { ABI as AquaSdkAbi } from "@1inch/aqua-sdk";
+import { ABI as SwapVmSdkAbi } from "@1inch/swap-vm-sdk";
 import { decodeErrorResult } from "viem";
 
 import type {
@@ -8,6 +9,20 @@ import type {
 } from "./deployment";
 
 export const stockTokenAbi = [
+  {
+    type: "function",
+    name: "symbol",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "string" }],
+  },
+  {
+    type: "function",
+    name: "decimals",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
+  },
   {
     type: "function",
     name: "balanceOf",
@@ -99,7 +114,8 @@ export const stockTokenAbi = [
   },
 ] as const;
 
-export const aquaAbi = ABI.AQUA_ABI;
+export const aquaAbi = AquaSdkAbi.AQUA_ABI;
+export const swapVmAbi = SwapVmSdkAbi.SWAP_VM_ABI;
 
 export const multiplierGuardErrorAbi = [
   {
@@ -130,7 +146,8 @@ function decodedGuardFailure(value: unknown): MultiplierGuardFailure | null {
     "args" in value &&
     Array.isArray(value.args)
   ) {
-    const [, token, currentMultiplier, minMultiplier, maxMultiplier] = value.args;
+    const [, token, currentMultiplier, minMultiplier, maxMultiplier] =
+      value.args;
     if (
       typeof token === "string" &&
       typeof currentMultiplier === "bigint" &&
@@ -149,7 +166,9 @@ function decodedGuardFailure(value: unknown): MultiplierGuardFailure | null {
 }
 
 /** Extract only the fork's multiplier circuit-breaker error from a viem error chain. */
-export function decodeMultiplierGuardFailure(error: unknown): MultiplierGuardFailure | null {
+export function decodeMultiplierGuardFailure(
+  error: unknown,
+): MultiplierGuardFailure | null {
   const seen = new Set<unknown>();
   let current: unknown = error;
 
@@ -164,7 +183,10 @@ export function decodeMultiplierGuardFailure(error: unknown): MultiplierGuardFai
       if (decoded) return decoded;
       if (typeof data === "string" && /^0x[0-9a-f]+$/i.test(data)) {
         try {
-          const result = decodeErrorResult({ abi: multiplierGuardErrorAbi, data: data as `0x${string}` });
+          const result = decodeErrorResult({
+            abi: multiplierGuardErrorAbi,
+            data: data as `0x${string}`,
+          });
           const failure = decodedGuardFailure(result);
           if (failure) return failure;
         } catch {
