@@ -6,6 +6,7 @@ import {
   calculateMultiplierBounds,
   formatNumber,
   formatUsd,
+  hackathonDeployment,
   projectBand,
   resolveCompany,
 } from '@tradetoken/domain';
@@ -31,6 +32,7 @@ import { cn } from '@/lib/utils';
 
 import { TokenMark } from './components/aqua-token-select-dialog';
 import { addCreatedStrategy } from './created-strategies-store';
+import { useOpenLivePosition } from './hooks/use-open-live-position';
 
 function numericParam(value: string | null, fallback: number) {
   const parsed = Number(value);
@@ -189,9 +191,52 @@ function PeggedStrategyReview() {
   const amountB = numericParam(params.get('amountB'), 20);
   const feeBps = numericParam(params.get('feeBps'), 30);
   const guard = numericParam(params.get('guard'), 5);
+  const curve = params.get('curve') === 'straight' ? 'straight' : 'curved';
   const [opening, setOpening] = useState(false);
+  const live = useOpenLivePosition();
+  const liveMode = live.deploymentReady;
+  const walletLabel = liveMode
+    ? live.walletAddress
+      ? `${live.walletAddress.slice(0, 6)}…${live.walletAddress.slice(-4)}`
+      : 'Wallet required'
+    : wallet.short;
   const ratio = tokenA.multiplier / tokenB.multiplier;
   const total = amountA + amountB;
+
+  const deploy = async () => {
+    if (!liveMode) {
+      setOpening(true);
+      addCreatedStrategy({
+        ticker: tokenA.ticker,
+        mechanism: 'pegged',
+        pairLabel: `${tokenA.symbol} / ${tokenB.symbol}`,
+        depositedUsd: total,
+        feeTierPct: feeBps / 100,
+        guardPct: guard,
+        lowerValue: ratio * (1 - guard / 100),
+        upperValue: ratio * (1 + guard / 100),
+      });
+      router.push('/strategies');
+      return;
+    }
+
+    try {
+      const record = await live.openPosition({
+        ticker: tokenA.ticker,
+        tokenAId: tokenA.id,
+        tokenBId: tokenB.id,
+        amountAUsd: String(amountA),
+        amountBUsd: String(amountB),
+        priceUsd: tokenA.priceUsd,
+        feeBps,
+        guardToleranceBps: guard * 100,
+        curve,
+      });
+      router.push(`/strategies/live?id=${encodeURIComponent(record.id)}`);
+    } catch {
+      // The hook surfaces the error inside the dialog.
+    }
+  };
 
   return (
     <div className="mx-auto max-w-[620px] space-y-7">
@@ -212,7 +257,7 @@ function PeggedStrategyReview() {
       <Panel className="p-5">
         <div className="flex items-center gap-3 border-b border-stroke-hairline pb-4">
           <span className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-cobalt to-violet text-[11px] font-semibold text-white">B</span>
-          <Num className="flex-1 text-[12px] text-ink-secondary">{wallet.chain} · {wallet.short}</Num>
+          <Num className="flex-1 text-[12px] text-ink-secondary">{liveMode ? hackathonDeployment.chainName : wallet.chain} · {walletLabel}</Num>
           <Chip tone="positive">In wallet</Chip>
         </div>
 
@@ -242,38 +287,33 @@ function PeggedStrategyReview() {
         <DialogContent className="sm:max-w-[440px]">
           <DialogHeader>
             <DialogTitle>Deploy this Aqua strategy?</DialogTitle>
-            <DialogDescription>The final integration will request token approvals, sign the guarded strategy, and ship it to Aqua. This sandbox confirmation does not sign or submit anything.</DialogDescription>
+            <DialogDescription>
+              {liveMode
+                ? 'Your embedded wallet approves each leg for Aqua if needed, then ships the guarded strategy. Tokens stay in your wallet.'
+                : 'The final integration will request token approvals, sign the guarded strategy, and ship it to Aqua. This sandbox confirmation does not sign or submit anything.'}
+            </DialogDescription>
           </DialogHeader>
           <dl className="space-y-2.5 rounded-lg border border-stroke-hairline bg-fill-subtle p-4">
             <Fact label="Pair" value={`${tokenA.symbol} / ${tokenB.symbol}`} />
             <Fact label="Available balance" value={formatUsd(total)} />
             <Fact label="Circuit breaker" value={`Both legs · ±${guard}%`} />
+            <Fact label="Price curve" value={curve === 'straight' ? 'Straight' : 'Curved'} />
           </dl>
+          {live.error ? <p className="text-[11.5px] text-amber-bright">{live.error}</p> : null}
           <DialogFooter>
-            <DialogClose asChild><Button variant="ghost">Not now</Button></DialogClose>
-            <Button
-              disabled={opening}
-              onClick={() => {
-                setOpening(true);
-                addCreatedStrategy({
-                  ticker: tokenA.ticker,
-                  mechanism: 'pegged',
-                  pairLabel: `${tokenA.symbol} / ${tokenB.symbol}`,
-                  depositedUsd: total,
-                  feeTierPct: feeBps / 100,
-                  guardPct: guard,
-                  lowerValue: ratio * (1 - guard / 100),
-                  upperValue: ratio * (1 + guard / 100),
-                });
-                router.push('/strategies');
-              }}>
-              {opening ? 'Deploying…' : 'Confirm sandbox'}
+            <DialogClose asChild><Button variant="ghost" disabled={live.busy}>Not now</Button></DialogClose>
+            <Button disabled={opening || live.busy} onClick={() => void deploy()}>
+              {liveMode ? live.label : opening ? 'Deploying…' : 'Confirm sandbox'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <SandboxNote className="text-center">Sandbox — contract addresses are intentionally pending the teammate deployment manifest.</SandboxNote>
+      <SandboxNote className="text-center">
+        {liveMode
+          ? `Live on ${hackathonDeployment.chainName} — confirming signs real transactions from your embedded wallet.`
+          : 'Sandbox — contract addresses are intentionally pending the teammate deployment manifest.'}
+      </SandboxNote>
     </div>
   );
 }

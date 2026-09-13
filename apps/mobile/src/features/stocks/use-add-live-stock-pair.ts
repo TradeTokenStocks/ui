@@ -1,34 +1,19 @@
 import { useEmbeddedEthereumWallet } from "@privy-io/expo";
 import {
-  deployedStock,
   hackathonDeployment,
-  parseDecimalUnits,
+  mintStockPair,
   requireLiveDeployment,
-  stockMintCall,
-  stockTokenAbi,
-  usdAllocationToTokenUnits,
+  transactionErrorMessage,
+  type MintStockPairStage,
 } from "@tradetoken/domain";
 import { useCallback, useState } from "react";
-import {
-  createPublicClient,
-  createWalletClient,
-  custom,
-  encodeFunctionData,
-  http,
-  type Address,
-} from "viem";
 
-import { robinHoodTestnet } from "@/lib/chains";
-import { waitForSuccess } from "@/lib/transactions";
-import { switchOrAddDeploymentChain } from "@/lib/wallet-chain";
+import { connectLiveSigner } from "@/lib/wallet-chain";
 
 type AddStockStage =
   | "idle"
   | "network"
-  | "reading"
-  | "mint-a"
-  | "mint-b"
-  | "confirming"
+  | MintStockPairStage
   | "complete"
   | "error";
 
@@ -43,20 +28,6 @@ const stageLabels: Record<AddStockStage, string> = {
   error: "Try again",
 };
 
-function messageFrom(error: unknown) {
-  if (
-    error &&
-    typeof error === "object" &&
-    "shortMessage" in error &&
-    typeof error.shortMessage === "string"
-  ) {
-    return error.shortMessage;
-  }
-  return error instanceof Error
-    ? error.message
-    : "The stock pair could not be prepared.";
-}
-
 export function useAddLiveStockPair() {
   const { wallets } = useEmbeddedEthereumWallet();
   const wallet = wallets[0];
@@ -64,12 +35,7 @@ export function useAddLiveStockPair() {
   const [error, setError] = useState<string | null>(null);
 
   const addPair = useCallback(
-    async ({
-      tokenAId,
-      tokenBId,
-      amountUsd,
-      priceUsd,
-    }: {
+    async (input: {
       tokenAId: string;
       tokenBId: string;
       amountUsd: string;
@@ -78,100 +44,20 @@ export function useAddLiveStockPair() {
       setError(null);
       try {
         const deployment = requireLiveDeployment();
-        if (!wallet)
-          throw new Error("Sign in and create your embedded wallet first.");
-        const account = wallet.address as Address;
-        const tokenA = deployedStock(deployment, tokenAId);
-        const tokenB = deployedStock(deployment, tokenBId);
-        const provider = await wallet.getProvider();
-
         setStage("network");
-        await switchOrAddDeploymentChain(provider, deployment);
-        const publicClient = createPublicClient({
-          chain: robinHoodTestnet,
-          transport: http(deployment.rpcUrl),
+        const signer = await connectLiveSigner(wallet, deployment);
+        const balances = await mintStockPair({
+          deployment,
+          signer,
+          ...input,
+          onStage: setStage,
         });
-        const walletClient = createWalletClient({
-          account,
-          chain: robinHoodTestnet,
-          transport: custom(provider),
-        });
-
-        setStage("reading");
-        const [multiplierA, multiplierB] = await Promise.all([
-          publicClient.readContract({
-            address: tokenA.address,
-            abi: stockTokenAbi,
-            functionName: tokenA.multiplierRead,
-          }),
-          publicClient.readContract({
-            address: tokenB.address,
-            abi: stockTokenAbi,
-            functionName: tokenB.multiplierRead,
-          }),
-        ]);
-        const halfUsd = (Number(amountUsd) / 2).toFixed(6);
-        const priceUsdE6 = parseDecimalUnits(priceUsd.toFixed(6), 6);
-        const amountA = usdAllocationToTokenUnits({
-          amountUsd: halfUsd,
-          priceUsdE6,
-          multiplierE18: multiplierA,
-          tokenDecimals: tokenA.decimals,
-        });
-        const amountB = usdAllocationToTokenUnits({
-          amountUsd: halfUsd,
-          priceUsdE6,
-          multiplierE18: multiplierB,
-          tokenDecimals: tokenB.decimals,
-        });
-
-        const submitMint = async (
-          call: NonNullable<ReturnType<typeof stockMintCall>>,
-          nextStage: "mint-a" | "mint-b",
-        ) => {
-          setStage(nextStage);
-          const hash = await walletClient.sendTransaction({
-            to: call.address,
-            data: encodeFunctionData({
-              abi: stockTokenAbi,
-              functionName: call.functionName,
-              args: call.args as never,
-            }),
-            value: 0n,
-          });
-          await waitForSuccess(publicClient, hash);
-        };
-
-        const mintA = stockMintCall(tokenA, account, amountA);
-        const mintB = stockMintCall(tokenB, account, amountB);
-        if (mintA) await submitMint(mintA, "mint-a");
-        if (mintB) await submitMint(mintB, "mint-b");
-
-        setStage("confirming");
-        const [balanceA, balanceB] = await Promise.all([
-          publicClient.readContract({
-            address: tokenA.address,
-            abi: stockTokenAbi,
-            functionName: "balanceOf",
-            args: [account],
-          }),
-          publicClient.readContract({
-            address: tokenB.address,
-            abi: stockTokenAbi,
-            functionName: "balanceOf",
-            args: [account],
-          }),
-        ]);
-        if (balanceA < amountA || balanceB < amountB) {
-          throw new Error(
-            `The wallet still needs ${balanceA < amountA ? tokenA.symbol : tokenB.symbol}. Use its official faucet, then retry.`,
-          );
-        }
-
         setStage("complete");
-        return { balanceA, balanceB };
+        return balances;
       } catch (cause) {
-        setError(messageFrom(cause));
+        setError(
+          transactionErrorMessage(cause, "The stock pair could not be prepared."),
+        );
         setStage("error");
         throw cause;
       }

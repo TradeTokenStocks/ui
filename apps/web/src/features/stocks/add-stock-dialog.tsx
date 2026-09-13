@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import type { DividendPreference, TokenizedStock } from '@tradetoken/domain';
-import { tokenizedStocks, wallet } from '@tradetoken/domain/fixtures';
+import { hackathonDeployment, type DividendPreference, type TokenizedStock } from '@tradetoken/domain';
+import { pairedRepresentations, tokenizedStocks, wallet } from '@tradetoken/domain/fixtures';
 import { ArrowLeft, ArrowRight, Check, Coins, RefreshCw, Search } from 'lucide-react';
 
 import { Display, Num } from '@/components/primitives';
@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { TokenMark } from '@/features/strategy/components/aqua-token-select-dialog';
+import { useConnection } from 'wagmi';
+
+import { useAddLiveStockPair } from './use-add-live-stock-pair';
 
 type Props = {
   open: boolean;
@@ -27,14 +30,35 @@ export function AddStockDialog({ open, onOpenChange, onComplete }: Props) {
   const normalized = query.trim().toLowerCase();
   const rows = catalog.filter((item) => !normalized || `${item.name} ${item.ticker}`.toLowerCase().includes(normalized));
   const amountUsd = Number(amount) || 0;
+  const live = useAddLiveStockPair();
+  const { address } = useConnection();
+  const recipient = live.deploymentReady
+    ? address
+      ? `${address.slice(0, 6)}…${address.slice(-4)}`
+      : 'Sign in required'
+    : wallet.short;
 
   const close = (next: boolean) => {
+    if (!next && live.busy) return;
     onOpenChange(next);
-    if (!next) setTimeout(() => setStep(1), 180);
+    if (!next)
+      setTimeout(() => {
+        setStep(1);
+        live.reset();
+      }, 180);
   };
 
-  const confirm = () => {
+  const confirm = async () => {
     if (!stock || amountUsd <= 0) return;
+    if (live.deploymentReady) {
+      const [tokenA, tokenB] = pairedRepresentations(stock.ticker);
+      if (!tokenA || !tokenB) return;
+      try {
+        await live.addPair({ tokenAId: tokenA.id, tokenBId: tokenB.id, amountUsd: amount, priceUsd: stock.priceUsd });
+      } catch {
+        return;
+      }
+    }
     onComplete(stock, amountUsd, preference);
     close(false);
   };
@@ -93,9 +117,10 @@ export function AddStockDialog({ open, onOpenChange, onComplete }: Props) {
         {step === 3 && stock ? (
           <div className="space-y-5 p-5">
             <div className="rounded-2xl border border-cobalt/25 bg-cobalt/[0.055] p-5 text-center"><span className="mx-auto grid size-12 place-items-center rounded-full bg-cobalt/15 text-cobalt-text"><Check className="size-5" /></span><Display className="mt-3 text-xl">{formatCurrency(amountUsd)} of {stock.ticker}</Display><p className="mt-1 text-[11.5px] text-ink-quaternary">Ready to tokenize into your embedded wallet</p></div>
-            <dl className="space-y-3 rounded-xl border border-stroke-hairline bg-fill-subtle p-4"><ReviewFact label="Stock" value={`${stock.name} (${stock.ticker})`} /><ReviewFact label="Representations" value="Dinari + xStock" /><ReviewFact label="Dividends" value={preference === 'drip' ? 'Auto-reinvest · multiplier' : 'USDC wallet payout'} /><ReviewFact label="Network" value="Deployment network pending" /><ReviewFact label="Gas" value="Sponsored" /><ReviewFact label="Recipient" value={wallet.short} /></dl>
-            <Button size="lg" className="w-full" onClick={confirm}>Confirm & tokenize stock</Button>
-            <p className="text-center text-[10.5px] text-ink-faint">Sandbox confirmation until mint contracts are connected.</p>
+            <dl className="space-y-3 rounded-xl border border-stroke-hairline bg-fill-subtle p-4"><ReviewFact label="Stock" value={`${stock.name} (${stock.ticker})`} /><ReviewFact label="Representations" value="Dinari + xStock" /><ReviewFact label="Dividends" value={preference === 'drip' ? 'Auto-reinvest · multiplier' : 'USDC wallet payout'} /><ReviewFact label="Network" value={live.deploymentReady ? hackathonDeployment.chainName : 'Deployment network pending'} /><ReviewFact label="Gas" value="Sponsored" /><ReviewFact label="Recipient" value={recipient} /></dl>
+            {live.error ? <p className="text-center text-[11.5px] text-amber-bright">{live.error}</p> : null}
+            <Button size="lg" className="w-full" disabled={live.busy} onClick={() => void confirm()}>{live.deploymentReady ? live.label : 'Confirm & tokenize stock'}</Button>
+            <p className="text-center text-[10.5px] text-ink-faint">{live.deploymentReady ? 'Mints both representations into your embedded wallet.' : 'Sandbox confirmation until mint contracts are connected.'}</p>
           </div>
         ) : null}
       </DialogContent>

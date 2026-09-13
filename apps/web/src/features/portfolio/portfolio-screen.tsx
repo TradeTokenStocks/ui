@@ -43,6 +43,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useBrokerageHoldings } from '@/features/connections/hooks/use-brokerage-holdings';
 import { AddStockDialog } from '@/features/stocks/add-stock-dialog';
+import { useWalletStockHoldings } from '@/features/stocks/use-wallet-stock-holdings';
 
 /**
  * What a company holds onchain, taken from the legs its own detail page calls
@@ -63,6 +64,7 @@ export function PortfolioScreen() {
   const [addStockOpen, setAddStockOpen] = useState(false);
   const [added, setAdded] = useState<Record<string, { amountUsd: number; preference: DividendPreference }>>({});
   const brokerage = useBrokerageHoldings();
+  const walletStocks = useWalletStockHoldings();
   const addedTotalUsd = Object.values(added).reduce((total, holding) => total + holding.amountUsd, 0);
   /**
    * Total exposure is wallet plus brokerage, and nothing else. An unlinked or
@@ -70,7 +72,9 @@ export function PortfolioScreen() {
    * headline number never claims to know something the connection cannot tell
    * it right now.
    */
-  const walletAllocatableUsd = totals.walletAllocatableUsd + addedTotalUsd;
+  const walletAllocatableUsd = walletStocks.live
+    ? walletStocks.totalUsd
+    : totals.walletAllocatableUsd + addedTotalUsd;
   const brokerageObservedUsd = brokerage.connected ? brokerage.totalValueUsd : 0;
   const exposure = splitUsd(walletAllocatableUsd + brokerageObservedUsd);
   const visibleCompanies: CompanyExposure[] = [

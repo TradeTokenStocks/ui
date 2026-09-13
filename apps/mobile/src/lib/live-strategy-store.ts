@@ -1,38 +1,10 @@
+import type { LiveStrategyRecord } from "@tradetoken/domain";
 import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useState } from "react";
 
 const STORAGE_KEY = "tradetoken.live-aqua-strategies.v1";
 
-export type LiveStrategyRecord = {
-  id: string;
-  ticker: string;
-  maker: `0x${string}`;
-  chainId: number;
-  strategyHash: `0x${string}`;
-  shipTransactionHash: `0x${string}`;
-  encodedOrder: `0x${string}`;
-  tokenA: {
-    address: `0x${string}`;
-    symbol: string;
-    decimals: number;
-    reserve: string;
-    multiplier: string;
-  };
-  tokenB: {
-    address: `0x${string}`;
-    symbol: string;
-    decimals: number;
-    reserve: string;
-    multiplier: string;
-  };
-  allocationUsd: number;
-  feeBps: number;
-  guardToleranceBps: number;
-  createdAt: string;
-  status?: "open" | "closed";
-  dockTransactionHash?: `0x${string}`;
-  closedAt?: string;
-};
+export type { LiveStrategyRecord };
 
 let memoryCache: LiveStrategyRecord[] = [];
 const listeners = new Set<(records: LiveStrategyRecord[]) => void>();
