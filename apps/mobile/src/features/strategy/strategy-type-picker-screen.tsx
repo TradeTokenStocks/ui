@@ -37,10 +37,8 @@ const OPTIONS: MechanismOption[] = [
 
 /**
  * Step 2 of opening a strategy: which Aqua mechanism, for the company chosen
- * in step 1. Only Concentrated has a working builder; Pegged and Full range
- * are shown so the picker reflects Aqua's real strategy taxonomy, but both
- * are disabled — Pegged is this project's stretch goal, Full range isn't
- * planned for stock/USDC pairs at all.
+ * in step 1. Same-stock pegged opens the Aqua position builder whenever the
+ * company has both Dinari and xStock representations.
  */
 export function StrategyTypePickerScreen() {
   const insets = useSafeAreaInsets();
@@ -51,8 +49,8 @@ export function StrategyTypePickerScreen() {
   const executableUsd = company ? executableTotalUsd(company) : 0;
 
   const select = (mechanism: StrategyMechanism) => {
-    if (mechanism !== 'concentrated') return;
-    router.push({ pathname: '/strategy/new', params: { ticker } });
+    if (mechanism === 'xyk') return;
+    router.push({ pathname: '/strategy/new', params: { ticker, mechanism } });
   };
 
   return (
@@ -71,11 +69,11 @@ export function StrategyTypePickerScreen() {
 
         <View style={styles.list}>
           {OPTIONS.map((option) => {
-            const enabled = option.mechanism === 'concentrated';
+            const enabled = option.mechanism === 'concentrated' || (option.mechanism === 'pegged' && peggedEligible);
             const eligibleNote =
               option.mechanism === 'pegged'
                 ? peggedEligible
-                  ? `${ticker} has a second representation — builder coming soon`
+                  ? `${ticker} has Dinari and xStock representations ready`
                   : `Needs a second tokenized representation of ${ticker}`
                 : null;
 

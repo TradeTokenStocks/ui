@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import {
   bandMarket,
@@ -15,7 +17,12 @@ import { ScreenField } from '@/components/screen-field';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+import { type CreatedSandboxStrategy, useCreatedStrategies } from './created-strategies-store';
+
 export function StrategyListScreen() {
+  const createdStrategies = useCreatedStrategies();
+  const strategyCount = strategies.length + createdStrategies.length;
+
   return (
     <div className="space-y-7">
       <ScreenField ramp="strategy" intensity={0.62} />
@@ -24,7 +31,7 @@ export function StrategyListScreen() {
         <div>
           <div className="flex items-baseline gap-3">
             <Display as="h1" className="text-3xl">Strategies</Display>
-            <Num className="text-[12px] text-ink-quaternary">{strategies.length} open</Num>
+            <Num className="text-[12px] text-ink-quaternary">{strategyCount} open</Num>
           </div>
           <p className="mt-2 text-[12.5px] text-ink-tertiary">
             Automated ranges using your onchain balances.
@@ -35,8 +42,11 @@ export function StrategyListScreen() {
         </Button>
       </header>
 
-      {strategies.length > 0 ? (
+      {strategyCount > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2">
+          {createdStrategies.map((strategy) => (
+            <CreatedStrategyCard key={strategy.id} strategy={strategy} />
+          ))}
           {strategies.map((strategy) => (
             <StrategyCard key={strategy.ticker} strategy={strategy} />
           ))}
@@ -54,6 +64,40 @@ export function StrategyListScreen() {
         Strategy positions, fills, and returns are deterministic sandbox fixtures.
       </SandboxNote>
     </div>
+  );
+}
+
+function CreatedStrategyCard({ strategy }: { strategy: CreatedSandboxStrategy }) {
+  const pegged = strategy.mechanism === 'pegged';
+
+  return (
+    <Panel className="h-full border-cobalt/25 bg-gradient-to-br from-cobalt/[0.065] to-surface p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Display as="h2" className="text-[15px]">{strategy.pairLabel}</Display>
+            <Chip>{strategyMechanismLabel(strategy.mechanism)}</Chip>
+          </div>
+          <Num className="mt-1.5 block text-[11px] text-ink-quaternary">
+            {pegged
+              ? `ratio ${strategy.lowerValue.toFixed(4)} — ${strategy.upperValue.toFixed(4)}`
+              : `${formatUsd(strategy.lowerValue, { digits: 2 })} — ${formatUsd(strategy.upperValue, { digits: 2 })}`}
+          </Num>
+        </div>
+        <Chip tone="positive"><PulseDot />Open</Chip>
+      </div>
+
+      <div className="mt-6 flex items-end justify-between gap-4 border-t border-stroke-hairline pt-4">
+        <div>
+          <Num className="block text-xl font-medium">{formatUsd(strategy.depositedUsd, { digits: 2 })}</Num>
+          <Num className="mt-1 block text-[11.5px] text-cobalt-text">Just created</Num>
+        </div>
+        <div className="text-right">
+          <Num className="block text-[11.5px] text-ink-quaternary">{strategy.feeTierPct.toFixed(2)}% fee</Num>
+          <Num className="mt-1 block text-[11.5px] text-positive">Both legs · ±{strategy.guardPct}%</Num>
+        </div>
+      </div>
+    </Panel>
   );
 }
 

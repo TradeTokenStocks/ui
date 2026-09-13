@@ -8,7 +8,7 @@ import { Body, Display, Num } from '@/components/ui/text';
 import { goBackOrHome } from '@/navigation/go-back';
 import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
 import { b20Symbol, bandMarket, calculateMultiplierBounds, formatNumber, formatUsd, projectBand, resolveCompany } from '@tradetoken/domain';
-import { companyDetails } from '@tradetoken/domain/fixtures';
+import { companyDetails, stockRepresentation } from '@tradetoken/domain/fixtures';
 
 const HOLD_DURATION = 1400;
 const HOLD_TICK_MS = 16;
@@ -20,10 +20,17 @@ function numericParam(value: string | string[] | undefined, fallback: number) {
 
 export function StrategyReviewScreen() {
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ ticker?: string; allocation?: string; band?: string }>();
+  const params = useLocalSearchParams<{ ticker?: string; allocation?: string; band?: string; mode?: string; tokenA?: string; tokenB?: string; amountA?: string; amountB?: string; feeBps?: string; guard?: string }>();
   const ticker = params.ticker?.toUpperCase() || 'NVDA';
+  const pegged = params.mode === 'pegged';
+  const tokenA = stockRepresentation(params.tokenA ?? `dinari-${ticker.toLowerCase()}`);
+  const tokenB = stockRepresentation(params.tokenB ?? `xstock-${ticker.toLowerCase()}`);
+  const amountA = numericParam(params.amountA, 20);
+  const amountB = numericParam(params.amountB, 20);
+  const feeBps = numericParam(params.feeBps, 30);
+  const guard = numericParam(params.guard, 5);
   const company = resolveCompany(companyDetails, ticker, 'NVDA');
-  const allocation = numericParam(params.allocation, 12000);
+  const allocation = pegged ? amountA + amountB : numericParam(params.allocation, 12000);
   const band = numericParam(params.band, 10);
   // Same projection the builder showed. Recomputed from the route params
   // rather than passed through, so a deep link into review is still correct.
@@ -33,7 +40,7 @@ export function StrategyReviewScreen() {
     bandPct: band,
   });
   const market = bandMarket(company.ticker);
-  const multiplierBounds = calculateMultiplierBounds(company.multiplier ?? 1.0 , 5);
+  const multiplierBounds = calculateMultiplierBounds(company.multiplier ?? 1.0, guard);
 
   const [hold, setHold] = useState(0);
   const [complete, setComplete] = useState(false);
@@ -92,7 +99,9 @@ export function StrategyReviewScreen() {
           {formatUsd(allocation)}
         </Display>
         <Num size={12.5} color={ink.tertiary} style={styles.previewMeta}>
-          {market} · band {formatUsd(projection.lowerUsd, { digits: 2 })} — {formatUsd(projection.upperUsd, { digits: 2 })}
+          {pegged
+            ? `${tokenA?.symbol ?? `d${ticker}`} / ${tokenB?.symbol ?? `x${ticker}`} · same-stock pegged`
+            : `${market} · band ${formatUsd(projection.lowerUsd, { digits: 2 })} — ${formatUsd(projection.upperUsd, { digits: 2 })}`}
         </Num>
       </View>
       <Pressable
@@ -128,28 +137,31 @@ export function StrategyReviewScreen() {
           </View>
         </View>
 
-        <Display size={26} style={styles.title}>
-          Two approvals to open
-        </Display>
+        <Display size={26} style={styles.title}>Two approvals to open</Display>
 
         <View style={styles.approvals}>
           <Approval
             index="1"
-            title={`Allow Aqua to use ${formatNumber(projection.usdcSideUsd)} USDC`}
+            title={pegged
+              ? `Allow Aqua to use ${amountA} ${tokenA?.symbol ?? `d${ticker}`} + ${amountB} ${tokenB?.symbol ?? `x${ticker}`}`
+              : `Allow Aqua to use ${formatNumber(projection.usdcSideUsd)} USDC`}
             detail="Spend cap, revocable any time"
             signed
           />
           <Approval
             index="2"
-            title="Open the band"
-            detail={`${formatNumber(projection.tokens, 1)} ${b20Symbol(company.ticker)} + ${formatNumber(projection.usdcSideUsd)} USDC`}
+            title={pegged ? 'Sign the pegged strategy' : 'Open the band'}
+            detail={pegged
+              ? `Fair ratio ${(tokenA?.multiplier ?? 1) / (tokenB?.multiplier ?? 1)}× · both balances stay in your wallet`
+              : `${formatNumber(projection.tokens, 1)} ${b20Symbol(company.ticker)} + ${formatNumber(projection.usdcSideUsd)} USDC`}
           />
         </View>
 
         <View style={styles.facts}>
-          <Fact label='Multiplier guard' value={`${multiplierBounds.min.toFixed(2)}x — ${multiplierBounds.max.toFixed(2)}x`}/>
-          <Fact label='Circuit breaker' value='Auto-halt (±5%)'/>
-          <Fact label="Aqua fee tier" value="0.30%" />
+          <Fact label={pegged ? 'Dinari multiplier' : 'Multiplier guard'} value={`${multiplierBounds.min.toFixed(2)}x — ${multiplierBounds.max.toFixed(2)}x`}/>
+          {pegged ? <Fact label="xStock multiplier" value={`${((tokenB?.multiplier ?? 1) * (1 - guard / 100)).toFixed(2)}x — ${((tokenB?.multiplier ?? 1) * (1 + guard / 100)).toFixed(2)}x`} /> : null}
+          <Fact label="Circuit breaker" value={`Auto-halt (±${guard}%)`}/>
+          <Fact label="Aqua fee tier" value={`${(feeBps / 100).toFixed(2)}%`} />
           <Fact label="Network fee" value="$0.04" />
           <Fact label="You can exit" value="Any time" />
         </View>

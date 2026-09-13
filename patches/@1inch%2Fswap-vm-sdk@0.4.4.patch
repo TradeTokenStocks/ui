@@ -1,0 +1,310 @@
+diff --git a/dist/index.js b/dist/index.js
+index b30e458664ef2f88d786ba4aec781aa87351ad34..1d890f46f92ccb3b9f00a79420aea9fffb733e25 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -3608,6 +3608,44 @@ __export(oracle_price_adjuster_exports, {
+ 	oraclePriceAdjuster1D: () => oraclePriceAdjuster1D
+ });
+ 
++//#endregion
++//#region TradeTokenStocks fork: stock multiplier guard
++var CheckStockMultiplierRangeArgsCoder = class {
++	encode(args) {
++		const builder = new BytesBuilder();
++		builder.addAddress(args.token.toString());
++		builder.addUint256(args.minMultiplier);
++		builder.addUint256(args.maxMultiplier);
++		return new HexString$1(builder.asHex());
++	}
++	decode(data) {
++		const iter = BytesIter.HexString(data.toString());
++		return new CheckStockMultiplierRangeArgs(new Address$1(iter.nextAddress()), BigInt(iter.nextUint256()), BigInt(iter.nextUint256()));
++	}
++};
++var CheckStockMultiplierRangeArgs = class CheckStockMultiplierRangeArgs {
++	static CODER = new CheckStockMultiplierRangeArgsCoder();
++	constructor(token, minMultiplier, maxMultiplier) {
++		this.token = token;
++		this.minMultiplier = minMultiplier;
++		this.maxMultiplier = maxMultiplier;
++		assert(minMultiplier > 0n, "minMultiplier must be greater than zero");
++		assert(minMultiplier <= maxMultiplier, "maxMultiplier must be greater than or equal to minMultiplier");
++	}
++	static decode(data) {
++		return CheckStockMultiplierRangeArgs.CODER.decode(data);
++	}
++	toJSON() {
++		return { token: this.token.toString(), minMultiplier: this.minMultiplier.toString(), maxMultiplier: this.maxMultiplier.toString() };
++	}
++};
++const checkStockMultiplierRange = new Opcode(Symbol("TokenValidators.checkStockMultiplierRange"), CheckStockMultiplierRangeArgs.CODER);
++var stock_validators_exports = {};
++__export(stock_validators_exports, {
++	CheckStockMultiplierRangeArgs: () => CheckStockMultiplierRangeArgs,
++	checkStockMultiplierRange: () => checkStockMultiplierRange
++});
++
+ //#endregion
+ //#region src/swap-vm/instructions/index.ts
+ var instructions_exports = {};
+@@ -3630,6 +3668,7 @@ __export(instructions_exports, {
+ 	oraclePriceAdjuster: () => oracle_price_adjuster_exports,
+ 	peggedSwap: () => pegged_swap_exports,
+ 	stableSwap: () => pegged_swap_exports,
++	stockValidators: () => stock_validators_exports,
+ 	truncateHumanDecimalString: () => truncateHumanDecimalString,
+ 	twapSwap: () => twap_swap_exports,
+ 	xycSwap: () => xyc_swap_exports
+@@ -3690,42 +3729,22 @@ const _allInstructions = [
+ * Aqua opcodes array - matching AquaSwapVM contract (29 opcodes)
+ * @see https://github.com/1inch/swap-vm/blob/main/src/opcodes/AquaOpcodes.sol#L28
+ */
+-const aquaInstructions = [
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	jump,
+-	jumpIfTokenIn,
+-	jumpIfTokenOut,
+-	deadline,
+-	onlyTakerTokenBalanceNonZero,
+-	onlyTakerTokenBalanceGte,
+-	onlyTakerTokenSupplyShareGte,
+-	xycSwapXD,
+-	concentrateGrowLiquidity2D,
+-	decayXD,
+-	salt,
+-	flatFeeAmountInXD,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	protocolFeeAmountInXD,
+-	aquaProtocolFeeAmountInXD,
+-	dynamicProtocolFeeAmountInXD,
+-	aquaDynamicProtocolFeeAmountInXD,
+-	peggedSwapGrowPriceRange2D,
+-	extruction,
+-	onlyTxOriginTokenBalanceNonZero
+-];
++const aquaInstructions = Array.from({ length: 256 }, () => EMPTY_OPCODE);
++Object.assign(aquaInstructions, {
++	0x02: salt,
++	0x03: jump,
++	0x04: extruction,
++	0x20: deadline,
++	0x24: checkStockMultiplierRange,
++	0x31: jumpIfTokenIn,
++	0x32: jumpIfTokenOut,
++	0x50: xycSwapXD,
++	0x51: concentrateGrowLiquidity2D,
++	0x58: peggedSwapGrowPriceRange2D,
++	0x70: flatFeeAmountInXD,
++	0x80: protocolFeeAmountInXD,
++	0x9c: decayXD
++});
+ 
+ //#endregion
+ //#region src/swap-vm/instructions/debug/debug-empty-args.ts
+@@ -4279,6 +4298,11 @@ var AquaProgramBuilder = class AquaProgramBuilder extends ProgramBuilder {
+ 		super.add(deadline.createIx(new DeadlineArgs(data.deadline)));
+ 		return this;
+ 	}
++	/** Reverts when a tokenized stock multiplier is outside the signed range. */
++	checkStockMultiplierRange(data) {
++		super.add(checkStockMultiplierRange.createIx(new CheckStockMultiplierRangeArgs(data.token, data.minMultiplier, data.maxMultiplier)));
++		return this;
++	}
+ 	/**
+ 	* Requires taker to hold any amount of specified token (supports NFTs)
+ 	**/
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 827b39759762933177a6779d24200c303ed0a8ec..4be3726758e185f5c94155bd4ea3e0822778edb5 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -3589,6 +3589,44 @@ __export(oracle_price_adjuster_exports, {
+ 	oraclePriceAdjuster1D: () => oraclePriceAdjuster1D
+ });
+ 
++//#endregion
++//#region TradeTokenStocks fork: stock multiplier guard
++var CheckStockMultiplierRangeArgsCoder = class {
++	encode(args) {
++		const builder = new BytesBuilder();
++		builder.addAddress(args.token.toString());
++		builder.addUint256(args.minMultiplier);
++		builder.addUint256(args.maxMultiplier);
++		return new HexString$1(builder.asHex());
++	}
++	decode(data) {
++		const iter = BytesIter.HexString(data.toString());
++		return new CheckStockMultiplierRangeArgs(new Address$1(iter.nextAddress()), BigInt(iter.nextUint256()), BigInt(iter.nextUint256()));
++	}
++};
++var CheckStockMultiplierRangeArgs = class CheckStockMultiplierRangeArgs {
++	static CODER = new CheckStockMultiplierRangeArgsCoder();
++	constructor(token, minMultiplier, maxMultiplier) {
++		this.token = token;
++		this.minMultiplier = minMultiplier;
++		this.maxMultiplier = maxMultiplier;
++		assert(minMultiplier > 0n, "minMultiplier must be greater than zero");
++		assert(minMultiplier <= maxMultiplier, "maxMultiplier must be greater than or equal to minMultiplier");
++	}
++	static decode(data) {
++		return CheckStockMultiplierRangeArgs.CODER.decode(data);
++	}
++	toJSON() {
++		return { token: this.token.toString(), minMultiplier: this.minMultiplier.toString(), maxMultiplier: this.maxMultiplier.toString() };
++	}
++};
++const checkStockMultiplierRange = new Opcode(Symbol("TokenValidators.checkStockMultiplierRange"), CheckStockMultiplierRangeArgs.CODER);
++var stock_validators_exports = {};
++__export(stock_validators_exports, {
++	CheckStockMultiplierRangeArgs: () => CheckStockMultiplierRangeArgs,
++	checkStockMultiplierRange: () => checkStockMultiplierRange
++});
++
+ //#endregion
+ //#region src/swap-vm/instructions/index.ts
+ var instructions_exports = {};
+@@ -3611,6 +3649,7 @@ __export(instructions_exports, {
+ 	oraclePriceAdjuster: () => oracle_price_adjuster_exports,
+ 	peggedSwap: () => pegged_swap_exports,
+ 	stableSwap: () => pegged_swap_exports,
++	stockValidators: () => stock_validators_exports,
+ 	truncateHumanDecimalString: () => truncateHumanDecimalString,
+ 	twapSwap: () => twap_swap_exports,
+ 	xycSwap: () => xyc_swap_exports
+@@ -3671,42 +3710,22 @@ const _allInstructions = [
+ * Aqua opcodes array - matching AquaSwapVM contract (29 opcodes)
+ * @see https://github.com/1inch/swap-vm/blob/main/src/opcodes/AquaOpcodes.sol#L28
+ */
+-const aquaInstructions = [
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	jump,
+-	jumpIfTokenIn,
+-	jumpIfTokenOut,
+-	deadline,
+-	onlyTakerTokenBalanceNonZero,
+-	onlyTakerTokenBalanceGte,
+-	onlyTakerTokenSupplyShareGte,
+-	xycSwapXD,
+-	concentrateGrowLiquidity2D,
+-	decayXD,
+-	salt,
+-	flatFeeAmountInXD,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	EMPTY_OPCODE,
+-	protocolFeeAmountInXD,
+-	aquaProtocolFeeAmountInXD,
+-	dynamicProtocolFeeAmountInXD,
+-	aquaDynamicProtocolFeeAmountInXD,
+-	peggedSwapGrowPriceRange2D,
+-	extruction,
+-	onlyTxOriginTokenBalanceNonZero
+-];
++const aquaInstructions = Array.from({ length: 256 }, () => EMPTY_OPCODE);
++Object.assign(aquaInstructions, {
++	0x02: salt,
++	0x03: jump,
++	0x04: extruction,
++	0x20: deadline,
++	0x24: checkStockMultiplierRange,
++	0x31: jumpIfTokenIn,
++	0x32: jumpIfTokenOut,
++	0x50: xycSwapXD,
++	0x51: concentrateGrowLiquidity2D,
++	0x58: peggedSwapGrowPriceRange2D,
++	0x70: flatFeeAmountInXD,
++	0x80: protocolFeeAmountInXD,
++	0x9c: decayXD
++});
+ 
+ //#endregion
+ //#region src/swap-vm/instructions/debug/debug-empty-args.ts
+@@ -4260,6 +4279,11 @@ var AquaProgramBuilder = class AquaProgramBuilder extends ProgramBuilder {
+ 		super.add(deadline.createIx(new DeadlineArgs(data.deadline)));
+ 		return this;
+ 	}
++	/** Reverts when a tokenized stock multiplier is outside the signed range. */
++	checkStockMultiplierRange(data) {
++		super.add(checkStockMultiplierRange.createIx(new CheckStockMultiplierRangeArgs(data.token, data.minMultiplier, data.maxMultiplier)));
++		return this;
++	}
+ 	/**
+ 	* Requires taker to hold any amount of specified token (supports NFTs)
+ 	**/
+diff --git a/dist/swap-vm/instructions/index.d.ts b/dist/swap-vm/instructions/index.d.ts
+index 225b612f6d491c25418964b0068dc95f28cdcb04..365d7a416d00dee99ec5f79c514badd457ae216a 100644
+--- a/dist/swap-vm/instructions/index.d.ts
++++ b/dist/swap-vm/instructions/index.d.ts
+@@ -1,5 +1,6 @@
+ import type { Opcode } from './opcode';
+ import type { IArgsData } from './types';
++import type { Address, HexString } from '@1inch/sdk-core';
+ export * from './types';
+ export { bigintSqrt, truncateHumanDecimalString } from './utils';
+ export { EMPTY_OPCODE } from './empty';
+@@ -19,6 +20,17 @@ export * as stableSwap from './pegged-swap';
+ export * as fee from './fee';
+ export * as extruction from './extruction';
+ export * as peggedSwap from './pegged-swap';
++export declare namespace stockValidators {
++    class CheckStockMultiplierRangeArgs implements IArgsData {
++        readonly token: Address;
++        readonly minMultiplier: bigint;
++        readonly maxMultiplier: bigint;
++        constructor(token: Address, minMultiplier: bigint, maxMultiplier: bigint);
++        static decode(data: HexString): CheckStockMultiplierRangeArgs;
++        toJSON(): Record<string, string>;
++    }
++    const checkStockMultiplierRange: Opcode<CheckStockMultiplierRangeArgs>;
++}
+ /**
+  * Regular opcodes array - matching SwapVM contract exactly (44 opcodes)
+  * @see https://github.com/1inch/swap-vm/blob/main/src/opcodes/Opcodes.sol#L46
+diff --git a/dist/swap-vm/programs/aqua-program-builder.d.ts b/dist/swap-vm/programs/aqua-program-builder.d.ts
+index 1fb0060c7a24103f9d3227d2e187411579f39b52..9af9101b8d72d24c67100545c3c409ab3eb95c56 100644
+--- a/dist/swap-vm/programs/aqua-program-builder.d.ts
++++ b/dist/swap-vm/programs/aqua-program-builder.d.ts
+@@ -6,6 +6,7 @@ import * as concentrate from '../instructions/concentrate';
+ import * as decay from '../instructions/decay';
+ import * as fee from '../instructions/fee';
+ import * as peggedSwap from '../instructions/pegged-swap';
++import type { Address } from '@1inch/sdk-core';
+ export declare class AquaProgramBuilder extends ProgramBuilder {
+     constructor();
+     static decode(program: SwapVmProgram): AquaProgramBuilder;
+@@ -30,6 +31,12 @@ export declare class AquaProgramBuilder extends ProgramBuilder {
+      * Reverts if the deadline has been reached
+      **/
+     deadline(data: DataFor<controls.DeadlineArgs>): this;
++    /** Reverts when a tokenized stock multiplier is outside the signed range. */
++    checkStockMultiplierRange(data: {
++        token: Address;
++        minMultiplier: bigint;
++        maxMultiplier: bigint;
++    }): this;
+     /**
+      * Requires taker to hold any amount of specified token (supports NFTs)
+      **/

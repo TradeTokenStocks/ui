@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, Plus } from 'lucide-react';
 import {
   formatLedgerAmount,
   formatNumber,
@@ -10,7 +11,9 @@ import {
   isGain,
   splitUsd,
   type CompanyExposure,
+  type DividendPreference,
   type LedgerRow,
+  type TokenizedStock,
 } from '@tradetoken/domain';
 import {
   account,
@@ -18,6 +21,7 @@ import {
   companies,
   events,
   hasUnreviewedEvents,
+  tokenizedStocks,
   totals,
 } from '@tradetoken/domain/fixtures';
 
@@ -33,9 +37,30 @@ import {
 } from '@/components/primitives';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { AddStockDialog } from '@/features/stocks/add-stock-dialog';
 
 export function PortfolioScreen() {
-  const exposure = splitUsd(totals.exposureUsd);
+  const [addStockOpen, setAddStockOpen] = useState(false);
+  const [added, setAdded] = useState<Record<string, { amountUsd: number; preference: DividendPreference }>>({});
+  const addedTotalUsd = Object.values(added).reduce((total, holding) => total + holding.amountUsd, 0);
+  const addedCompanyCount = Object.keys(added).filter((ticker) => !companies.some((company) => company.ticker === ticker)).length;
+  const exposure = splitUsd(totals.exposureUsd + addedTotalUsd);
+  const visibleCompanies: CompanyExposure[] = [
+    ...companies.map((company) => {
+      const holding = added[company.ticker];
+      if (!holding) return company;
+      const valueUsd = company.valueUsd + holding.amountUsd;
+      const observedValueUsd = company.valueUsd * (company.observedPct / 100);
+      const observedPct = Math.round((observedValueUsd / valueUsd) * 100);
+      return { ...company, valueUsd, observedPct, onchainPct: 100 - observedPct, dividendPreference: holding.preference };
+    }),
+    ...Object.entries(added).filter(([ticker]) => !companies.some((company) => company.ticker === ticker)).map(([ticker, holding]) => {
+      const stock = tokenizedStocks.find((item) => item.ticker === ticker)!;
+      return { ticker, name: stock.name, initials: ticker.slice(0, 2), observedPct: 0, onchainPct: 100, valueUsd: holding.amountUsd, changePct: stock.changePct, dividendPreference: holding.preference };
+    }),
+  ];
+
+  const addStock = (stock: TokenizedStock, amountUsd: number, preference: DividendPreference) => setAdded((current) => ({ ...current, [stock.ticker]: { amountUsd: (current[stock.ticker]?.amountUsd ?? 0) + amountUsd, preference } }));
 
   return (
     <div className="space-y-10">
@@ -81,7 +106,7 @@ export function PortfolioScreen() {
         <div className="specular relative overflow-hidden rounded-xl border border-cobalt/25 bg-gradient-to-br from-cobalt-deep/65 via-cobalt-deep/30 to-surface-sunken p-5 shadow-[0_16px_42px_-20px_rgba(52,72,220,0.65)]">
           <div className="text-[11.5px] font-semibold text-white/80">Wallet · allocatable</div>
           <Num className="mt-2 block text-2xl font-medium text-white">
-            {formatUsd(totals.walletAllocatableUsd)}
+            {formatUsd(totals.walletAllocatableUsd + addedTotalUsd)}
           </Num>
           <p className="mt-3 text-[11.5px] leading-relaxed text-white/70">
             Ready for strategies
@@ -116,13 +141,14 @@ export function PortfolioScreen() {
         <TabsContent value="holdings">
           <Panel className="bg-gradient-to-b from-surface to-surface-sunken">
             <div className="flex items-center justify-between gap-4 border-b border-stroke-hairline bg-fill-subtle px-5 py-4 sm:px-6">
-              <Display className="mr-auto text-base">Companies</Display>
-              <span className="text-[11.5px] font-medium text-ink-quaternary">
-                {formatNumber(totals.holdingsCount)} holdings
-              </span>
+              <div className="min-w-0 flex-1">
+                <Display className="text-base">Companies</Display>
+                <span className="mt-0.5 block text-[11.5px] font-medium text-ink-quaternary">{formatNumber(totals.holdingsCount + addedCompanyCount)} holdings</span>
+              </div>
+              <button type="button" onClick={() => setAddStockOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-cobalt px-3 py-2 text-[11.5px] font-semibold text-white shadow-[0_8px_20px_rgba(61,82,222,.25)] hover:bg-cobalt/90"><Plus className="size-3.5" /> Add stock</button>
             </div>
             <ul className="divide-y divide-stroke-hairline px-3 sm:px-4">
-              {companies.map((company) => (
+              {visibleCompanies.map((company) => (
                 <li key={company.ticker}>
                   <CompanyRow company={company} />
                 </li>
@@ -155,6 +181,7 @@ export function PortfolioScreen() {
           </Panel>
         </TabsContent>
       </Tabs>
+      <AddStockDialog open={addStockOpen} onOpenChange={setAddStockOpen} onComplete={addStock} />
     </div>
   );
 }
@@ -176,6 +203,7 @@ function CompanyRow({ company }: { company: CompanyExposure }) {
           <span>
             <span className="flex items-center gap-1.5 text-[14.5px] font-semibold">
               {company.name}
+              {company.dividendPreference ? <Chip tone={company.dividendPreference === 'drip' ? 'cobalt' : 'positive'} className="px-2 py-0.5 text-[9px]">{company.dividendPreference === 'drip' ? 'DRIP' : 'USDC yield'}</Chip> : null}
               <ArrowUpRight className="size-3.5 text-ink-faint opacity-0 transition-opacity group-hover:opacity-100" />
             </span>
             <Num className="mt-0.5 block text-[10.5px] text-ink-faint">{company.ticker}</Num>
