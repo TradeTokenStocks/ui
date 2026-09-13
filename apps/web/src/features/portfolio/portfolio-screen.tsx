@@ -4,12 +4,14 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, Plus } from 'lucide-react';
 import {
+  executableTotalUsd,
   formatLedgerAmount,
   formatNumber,
   formatPercent,
   formatUsd,
   isGain,
   splitUsd,
+  type BrokeragePosition,
   type CompanyExposure,
   type DividendPreference,
   type LedgerRow,
@@ -19,6 +21,7 @@ import {
   account,
   activity,
   companies,
+  companyDetails,
   events,
   hasUnreviewedEvents,
   tokenizedStocks,
@@ -34,20 +37,62 @@ import {
   Num,
   Panel,
   PulseDot,
+  SectionLabel,
 } from '@/components/primitives';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { useBrokerageHoldings } from '@/features/connections/hooks/use-brokerage-holdings';
 import { AddStockDialog } from '@/features/stocks/add-stock-dialog';
+
+/**
+ * What a company holds onchain, taken from the legs its own detail page calls
+ * executable.
+ *
+ * Deriving it from `onchainPct` instead would be a second opinion, and the
+ * fixture's percentages do not always agree with its dollar figures — NVDA's
+ * legs are 27/23% of the total by value but labelled 27/15%. A row and the page
+ * it opens have to show the same number, so both read the same source.
+ */
+function onchainValueUsd(company: CompanyExposure): number {
+  const detail = companyDetails[company.ticker];
+  if (detail) return executableTotalUsd(detail);
+  return company.valueUsd * (company.onchainPct / 100);
+}
 
 export function PortfolioScreen() {
   const [addStockOpen, setAddStockOpen] = useState(false);
   const [added, setAdded] = useState<Record<string, { amountUsd: number; preference: DividendPreference }>>({});
+  const brokerage = useBrokerageHoldings();
   const addedTotalUsd = Object.values(added).reduce((total, holding) => total + holding.amountUsd, 0);
-  const addedCompanyCount = Object.keys(added).filter((ticker) => !companies.some((company) => company.ticker === ticker)).length;
-  const exposure = splitUsd(totals.exposureUsd + addedTotalUsd);
+  /**
+   * Total exposure is wallet plus brokerage, and nothing else. An unlinked or
+   * expired brokerage contributes zero rather than a remembered figure — the
+   * headline number never claims to know something the connection cannot tell
+   * it right now.
+   */
+  const walletAllocatableUsd = totals.walletAllocatableUsd + addedTotalUsd;
+  const brokerageObservedUsd = brokerage.connected ? brokerage.totalValueUsd : 0;
+  const exposure = splitUsd(walletAllocatableUsd + brokerageObservedUsd);
   const visibleCompanies: CompanyExposure[] = [
     ...companies.map((company) => {
       const holding = added[company.ticker];
+      /**
+       * Once a brokerage is linked, observed exposure has a real source, and
+       * these rows give up their fixture's share of it: the same company would
+       * otherwise claim an invented brokerage split here and a true one in the
+       * observed list below. What is left is the onchain half — the only half a
+       * strategy could ever draw on anyway.
+       */
+      if (brokerage.connected) {
+        const onchainUsd = onchainValueUsd(company) + (holding?.amountUsd ?? 0);
+        return {
+          ...company,
+          valueUsd: onchainUsd,
+          observedPct: 0,
+          onchainPct: 100,
+          ...(holding ? { dividendPreference: holding.preference } : {}),
+        };
+      }
       if (!holding) return company;
       const valueUsd = company.valueUsd + holding.amountUsd;
       const observedValueUsd = company.valueUsd * (company.observedPct / 100);
@@ -106,7 +151,7 @@ export function PortfolioScreen() {
         <div className="specular relative overflow-hidden rounded-xl border border-cobalt/25 bg-gradient-to-br from-cobalt-deep/65 via-cobalt-deep/30 to-surface-sunken p-5 shadow-[0_16px_42px_-20px_rgba(52,72,220,0.65)]">
           <div className="text-[11.5px] font-semibold text-white/80">Wallet · allocatable</div>
           <Num className="mt-2 block text-2xl font-medium text-white">
-            {formatUsd(totals.walletAllocatableUsd + addedTotalUsd)}
+            {formatUsd(walletAllocatableUsd)}
           </Num>
           <p className="mt-3 text-[11.5px] leading-relaxed text-white/70">
             Ready for strategies
@@ -117,12 +162,22 @@ export function PortfolioScreen() {
           <div className="text-[11.5px] font-semibold text-ink-tertiary">
             Brokerage · observed
           </div>
-          <Num className="mt-2 block text-2xl font-medium">
-            {formatUsd(totals.brokerageObservedUsd)}
-          </Num>
-          <p className="mt-3 text-[11.5px] leading-relaxed text-ink-quaternary">
-            Read-only
-          </p>
+          <Num className="mt-2 block text-2xl font-medium">{formatUsd(brokerageObservedUsd)}</Num>
+          {brokerage.connected ? (
+            <p className="mt-3 text-[11.5px] leading-relaxed text-ink-quaternary">
+              Read-only · {brokerage.institution ?? 'SnapTrade'}
+            </p>
+          ) : (
+            <Link
+              href="/connections"
+              className="mt-3 inline-block text-[11.5px] leading-relaxed text-ink-quaternary underline decoration-stroke-raised underline-offset-4 hover:text-ink-secondary">
+              {brokerage.needsReconnect
+                ? 'Access expired · reconnect'
+                : brokerage.isLoading
+                  ? 'Checking connection…'
+                  : 'Connect a brokerage'}
+            </Link>
+          )}
         </div>
       </section>
 
@@ -143,10 +198,21 @@ export function PortfolioScreen() {
             <div className="flex items-center justify-between gap-4 border-b border-stroke-hairline bg-fill-subtle px-5 py-4 sm:px-6">
               <div className="min-w-0 flex-1">
                 <Display className="text-base">Companies</Display>
-                <span className="mt-0.5 block text-[11.5px] font-medium text-ink-quaternary">{formatNumber(totals.holdingsCount + addedCompanyCount)} holdings</span>
+                <span className="mt-0.5 block text-[11.5px] font-medium text-ink-quaternary">
+                  {formatNumber(visibleCompanies.length + brokerage.positions.length)} holdings
+                </span>
               </div>
               <button type="button" onClick={() => setAddStockOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-cobalt px-3 py-2 text-[11.5px] font-semibold text-white shadow-[0_8px_20px_rgba(61,82,222,.25)] hover:bg-cobalt/90"><Plus className="size-3.5" /> Add stock</button>
             </div>
+            {/* The two custody models are named once a real brokerage is
+                linked. A company can honestly appear in both groups — holding
+                NVDA onchain and at a broker is the product's whole point — but
+                only if the screen says which number means what. */}
+            {brokerage.connected ? (
+              <div className="border-b border-stroke-hairline px-5 py-3 sm:px-6">
+                <SectionLabel>Onchain · allocatable</SectionLabel>
+              </div>
+            ) : null}
             <ul className="divide-y divide-stroke-hairline px-3 sm:px-4">
               {visibleCompanies.map((company) => (
                 <li key={company.ticker}>
@@ -154,6 +220,27 @@ export function PortfolioScreen() {
                 </li>
               ))}
             </ul>
+
+            {/* Observed positions stay in their own group rather than being
+                folded into the company rows above: those carry an onchain /
+                observed split this data cannot speak for, and a brokerage
+                position is not something a strategy can draw on. */}
+            {brokerage.connected && brokerage.positions.length > 0 ? (
+              <>
+                <div className="border-t border-stroke-hairline bg-fill-subtle px-5 py-3 sm:px-6">
+                  <SectionLabel>
+                    Observed at {brokerage.institution ?? 'brokerage'} · read-only
+                  </SectionLabel>
+                </div>
+                <ul className="divide-y divide-stroke-hairline px-3 sm:px-4">
+                  {brokerage.positions.map((position) => (
+                    <li key={position.ticker}>
+                      <ObservedRow position={position} />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
           </Panel>
         </TabsContent>
 
@@ -226,6 +313,39 @@ function CompanyRow({ company }: { company: CompanyExposure }) {
         />
       </span>
     </Link>
+  );
+}
+
+/**
+ * A brokerage position. Inert by design — no link, no chevron, nothing to open:
+ * there is no onchain representation behind it to act on.
+ */
+function ObservedRow({ position }: { position: BrokeragePosition }) {
+  return (
+    <div className="flex items-start gap-4 px-2 py-5 sm:px-3">
+      <span className="grid size-11 shrink-0 place-items-center rounded-lg border border-stroke-hairline bg-fill-subtle text-[12px] font-semibold text-ink-tertiary">
+        {position.ticker.slice(0, 2)}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-[14.5px] font-semibold">{position.name}</span>
+              <Chip className="px-2 py-0.5 text-[9px]">Observed</Chip>
+            </div>
+            <Num className="mt-0.5 block text-[10.5px] text-ink-faint">
+              {position.ticker} · {formatNumber(position.shares, 2)} shares
+            </Num>
+          </div>
+          <div className="shrink-0 text-right">
+            <Num className="block text-[14px] font-medium">{formatUsd(position.valueUsd)}</Num>
+            <Num className="mt-0.5 block text-[11.5px] text-ink-quaternary">
+              {formatUsd(position.priceUsd, { digits: 2 })}
+            </Num>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

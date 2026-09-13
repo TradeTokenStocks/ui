@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { BottomSheet } from '@expo/ui';
 import { usePrivy } from '@privy-io/expo';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -11,6 +10,7 @@ import { SelectionPicker } from '@/components/ui/selection-picker';
 import { Body, Display } from '@/components/ui/text';
 import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
 import { goBackOrHome } from '@/navigation/go-back';
+import { useBrokerageHoldings } from '@/features/connections/hooks/use-brokerage-holdings';
 import { createSnapTradePortal, snapTradeApiUrl } from '@/lib/snaptrade';
 
 const SCENARIOS = [
@@ -24,13 +24,13 @@ type ScenarioId = (typeof SCENARIOS)[number]['id'];
 
 export function SnapTradePortalScreen() {
   const insets = useSafeAreaInsets();
-  const [presented, setPresented] = useState(true);
   const [scenario, setScenario] = useState<ScenarioId>('self-directed');
   const [institution, setInstitution] = useState('alpaca');
   const [failed, setFailed] = useState(false);
   const [liveBusy, setLiveBusy] = useState(false);
   const [liveError, setLiveError] = useState<string | null>(null);
   const { user, isReady, getAccessToken } = usePrivy();
+  const { refetch } = useBrokerageHoldings();
   const selected = SCENARIOS.find((item) => item.id === scenario);
   if (!selected) throw new Error(`Unknown SnapTrade scenario: ${scenario}`);
 
@@ -57,30 +57,47 @@ export function SnapTradePortalScreen() {
         portal.redirectUri,
         'tradetokenstocks://connections',
       );
-      if (result.type === 'success') router.replace('/connections');
+      if (result.type === 'success') {
+        // Returning from the portal is the one moment the shared state is
+        // certainly stale: a brokerage was linked while the app sat still.
+        refetch();
+        router.replace('/connections');
+      }
     } catch (caught) {
+      // A portal handoff crosses Privy, this app's API and an external browser.
+      // The message shown is one line; the cause has to be recoverable here.
+      console.error('[snaptrade] portal handoff failed', caught);
       setLiveError(caught instanceof Error ? caught.message : 'Could not open SnapTrade.');
     } finally {
       setLiveBusy(false);
     }
   };
 
+  /*
+   * Plain views rather than `@expo/ui`'s BottomSheet.
+   *
+   * On Android that component is a Material3 ModalBottomSheet — its own native
+   * window — and React Native's touch system does not own it, so every
+   * Pressable inside was inert while the native pickers kept working. The route
+   * is already a `transparentModal`, so the sheet was only ever providing the
+   * scrim and the rounded top, and both are a few lines of style.
+   */
   return (
     <View style={styles.host}>
-      <BottomSheet
-        isPresented={presented}
-        onDismiss={goBackOrHome}
-        snapPoints={['full']}
-        contentPadding={0}
-        containerColor={palette.bg}
-        scrimColor="rgba(0,0,0,0.72)"
-        shouldDismissOnClickOutside>
-        <View style={[styles.sheet, { paddingTop: insets.top + 9 }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss portal"
+        style={styles.scrim}
+        onPress={goBackOrHome}
+      />
+      <View style={[styles.sheet, { paddingTop: insets.top + 9 }]}>
         <View style={styles.header}>
           <View style={styles.brandMark}><Body size={12} weight="bold" color="#08131c">S</Body></View>
           <Body size={15} weight="bold">SnapTrade</Body>
           <View style={styles.flex} />
-          <Pressable accessibilityRole="button" accessibilityLabel="Close portal" onPress={() => setPresented(false)} style={styles.close}><Body size={20} color={ink.secondary}>×</Body></Pressable>
+          {/* Leaves the route, not just the sheet. Un-presenting alone stripped
+              the sheet away and left the screen behind it with nothing on it. */}
+          <Pressable accessibilityRole="button" accessibilityLabel="Close portal" onPress={goBackOrHome} style={styles.close}><Body size={20} color={ink.secondary}>×</Body></Pressable>
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -143,8 +160,7 @@ export function SnapTradePortalScreen() {
           <PrimaryButton label={`Connect · ${selected.title}`} onPress={connect} />
           <Body size={10.5} color={ink.faint} style={styles.legal}>Read-only access · production portal hosted by SnapTrade</Body>
         </View>
-        </View>
-      </BottomSheet>
+      </View>
     </View>
   );
 }
@@ -152,7 +168,7 @@ export function SnapTradePortalScreen() {
 function Label({ children }: { children: string }) { return <Body size={10.5} weight="semibold" color={ink.faint} tracking={1.15} style={styles.label}>{children}</Body>; }
 
 const styles = StyleSheet.create({
-  host: { flex: 1, backgroundColor: 'transparent' }, sheet: { flex: 1, minHeight: 760, backgroundColor: palette.bg, overflow: 'hidden', ...shadow.card },
+  host: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' }, scrim: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.72)' }, sheet: { flex: 1, marginTop: 44, backgroundColor: palette.bg, borderTopLeftRadius: 22, borderTopRightRadius: 22, overflow: 'hidden', ...shadow.card },
   header: { height: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.gutter, borderBottomWidth: 1, borderBottomColor: stroke.hairline }, brandMark: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#8fefcf', marginRight: 9 }, flex: { flex: 1 }, close: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: fill.muted },
   content: { paddingHorizontal: space.gutter, paddingTop: 24, paddingBottom: 150 }, intro: { lineHeight: 20, marginTop: 10 }, sandboxCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 20, padding: 14, borderRadius: radius.md, backgroundColor: 'rgba(224,163,60,0.08)', borderWidth: 1, borderColor: 'rgba(224,163,60,0.2)' }, sandboxDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.amber }, rowMeta: { marginTop: 4, lineHeight: 16 },
   liveCard: { gap: 12, marginTop: 20, padding: 14, borderRadius: radius.md, backgroundColor: 'rgba(90,213,208,0.05)', borderWidth: 1, borderColor: 'rgba(90,213,208,0.2)' },

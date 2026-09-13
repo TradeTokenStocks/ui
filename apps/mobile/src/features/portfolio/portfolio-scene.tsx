@@ -18,12 +18,14 @@ import { Body, Display, Num } from '@/components/ui/text';
 import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
 import { usePrivy } from '@privy-io/expo';
 import {
+  executableTotalUsd,
   formatLedgerAmount,
   formatNumber,
   formatPercent,
   formatUsd,
   isGain,
   splitUsd,
+  type BrokeragePosition,
   type CompanyExposure,
   type LedgerRow,
 } from '@tradetoken/domain';
@@ -31,15 +33,27 @@ import {
   account,
   activity,
   companies,
+  companyDetails,
   events,
   hasUnreviewedEvents,
   tokenizedStocks,
   totals,
 } from '@tradetoken/domain/fixtures';
+import { useBrokerageHoldings } from '@/features/connections/hooks/use-brokerage-holdings';
 import { useAddedStockHoldings } from '@/features/stocks/stock-holdings-store';
 
 /** Height of the dither field at the top of the screen. */
 const FIELD_HEIGHT = 380;
+
+/**
+ * What a company holds onchain, taken from the legs its own detail page calls
+ * executable, so a row and the page it opens never disagree.
+ */
+function onchainValueUsd(company: CompanyExposure): number {
+  const detail = companyDetails[company.ticker];
+  if (detail) return executableTotalUsd(detail);
+  return company.valueUsd * (company.onchainPct / 100);
+}
 
 const SEGMENTS: Segment[] = [
   { key: 'holdings', label: 'Holdings' },
@@ -56,6 +70,7 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
   const { width } = useWindowDimensions();
   const [segment, setSegment] = useState('holdings');
   const added = useAddedStockHoldings();
+  const brokerage = useBrokerageHoldings();
   const { user } = usePrivy();
 
   const emailAccount = user?.linked_accounts?.find((acc) => acc.type === 'email');
@@ -67,11 +82,34 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
 
   const navHeight = 56 + insets.bottom + 26;
   const addedTotalUsd = Object.values(added).reduce((total, holding) => total + holding.amountUsd, 0);
-  const addedCompanyCount = Object.keys(added).filter((ticker) => !companies.some((company) => company.ticker === ticker)).length;
-  const exposure = splitUsd(totals.exposureUsd + addedTotalUsd);
+  /**
+   * Total exposure is wallet plus brokerage, and nothing else. An unlinked or
+   * expired brokerage contributes zero rather than a remembered figure — the
+   * headline number never claims to know something the connection cannot tell
+   * it right now.
+   */
+  const walletAllocatableUsd = totals.walletAllocatableUsd + addedTotalUsd;
+  const brokerageObservedUsd = brokerage.connected ? brokerage.totalValueUsd : 0;
+  const exposure = splitUsd(walletAllocatableUsd + brokerageObservedUsd);
   const visibleCompanies: CompanyExposure[] = [
     ...companies.map((company) => {
       const holding = added[company.ticker];
+      /**
+       * Once a brokerage is linked, observed exposure has a real source, and
+       * these rows give up their fixture's share of it: the same company would
+       * otherwise claim an invented brokerage split here and a true one in the
+       * observed list below.
+       */
+      if (brokerage.connected) {
+        const onchainUsd = onchainValueUsd(company) + (holding?.amountUsd ?? 0);
+        return {
+          ...company,
+          valueUsd: onchainUsd,
+          observedPct: 0,
+          onchainPct: 100,
+          ...(holding ? { dividendPreference: holding.preference } : {}),
+        };
+      }
       if (!holding) return company;
       const valueUsd = company.valueUsd + holding.amountUsd;
       const observedValueUsd = company.valueUsd * (company.observedPct / 100);
@@ -193,18 +231,35 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
               Wallet · allocatable
             </Body>
             <Num size={20} weight="medium" color="#fff" style={styles.cardValue}>
-              {formatUsd(totals.walletAllocatableUsd + addedTotalUsd)}
+              {formatUsd(walletAllocatableUsd)}
             </Num>
           </View>
 
-          <View style={[styles.card, styles.cardMuted]}>
+          <Pressable
+            onPress={() => router.push('/connections')}
+            accessibilityRole="button"
+            accessibilityLabel={
+              brokerage.connected
+                ? `Brokerage observed, ${formatUsd(brokerageObservedUsd)}, read only`
+                : 'Connect a brokerage'
+            }
+            style={({ pressed }) => [styles.card, styles.cardMuted, pressed && { opacity: 0.8 }]}>
             <Body size={11.5} weight="semibold" color={ink.tertiary}>
               Brokerage · observed
             </Body>
             <Num size={20} weight="medium" style={styles.cardValue}>
-              {formatUsd(totals.brokerageObservedUsd)}
+              {formatUsd(brokerageObservedUsd)}
             </Num>
-          </View>
+            <Body size={10.5} color={ink.quaternary} style={styles.cardMeta}>
+              {brokerage.connected
+                ? `Read-only · ${brokerage.institution ?? 'brokerage'}`
+                : brokerage.needsReconnect
+                  ? 'Access expired · reconnect'
+                  : brokerage.isLoading
+                    ? 'Checking connection…'
+                    : 'Connect a brokerage'}
+            </Body>
+          </Pressable>
         </View>
 
         <View style={styles.segmentWrap}>
@@ -225,7 +280,7 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
                         Companies
                       </Body>
                       <Body size={11.5} weight="medium" color={ink.quaternary} style={styles.panelCount}>
-                        {formatNumber(totals.holdingsCount + addedCompanyCount)} holdings
+                        {formatNumber(visibleCompanies.length + brokerage.positions.length)} holdings
                       </Body>
                     </View>
                     <Pressable
@@ -237,11 +292,37 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
                     </Pressable>
                   </View>
                 </View>
+                {/* The two custody models are named once a real brokerage is
+                    linked. A company can honestly appear in both groups —
+                    holding NVDA onchain and at a broker is the point — but only
+                    if the screen says which number means what. */}
+                {brokerage.connected ? (
+                  <View style={styles.groupLabel}>
+                    <Body size={10.5} weight="semibold" color={ink.faint} tracking={1.1}>
+                      ONCHAIN · ALLOCATABLE
+                    </Body>
+                  </View>
+                ) : null}
                 <View style={styles.companyList}>
                   {visibleCompanies.map((company, index) => (
                     <CompanyRow key={company.ticker} company={company} divided={index > 0} />
                   ))}
                 </View>
+
+                {brokerage.connected && brokerage.positions.length > 0 ? (
+                  <>
+                    <View style={[styles.groupLabel, styles.groupLabelObserved]}>
+                      <Body size={10.5} weight="semibold" color={ink.faint} tracking={1.1}>
+                        OBSERVED AT {(brokerage.institution ?? 'BROKERAGE').toUpperCase()} · READ-ONLY
+                      </Body>
+                    </View>
+                    <View style={styles.companyList}>
+                      {brokerage.positions.map((position, index) => (
+                        <ObservedRow key={position.ticker} position={position} divided={index > 0} />
+                      ))}
+                    </View>
+                  </>
+                ) : null}
               </>
             ) : (
               <View style={styles.ledger}>
@@ -253,6 +334,49 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
           </Animated.View>
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * A brokerage position. Inert by design — not pressable, no chevron: there is
+ * no onchain representation behind it to act on.
+ */
+function ObservedRow({ position, divided }: { position: BrokeragePosition; divided: boolean }) {
+  return (
+    <View
+      style={[styles.row, divided && styles.rowDivided]}
+      accessible
+      accessibilityLabel={`${position.name}, ${formatUsd(position.valueUsd)}, ${formatNumber(position.shares, 2)} shares observed at a brokerage.`}>
+      <View style={styles.tile}>
+        <Body size={12} weight="semibold" color={ink.tertiary}>
+          {position.ticker.slice(0, 2)}
+        </Body>
+      </View>
+
+      <View style={styles.rowBody}>
+        <View style={styles.companyLine}>
+          <View style={styles.flex}>
+            <View style={styles.companyNameRow}>
+              <Body size={14.5} weight="semibold" numberOfLines={1} style={styles.companyName}>
+                {position.name}
+              </Body>
+              <View style={styles.observedBadge}>
+                <Body size={9} weight="semibold" color={ink.tertiary}>Observed</Body>
+              </View>
+            </View>
+            <Num size={10.5} color={ink.faint} style={styles.ticker}>
+              {position.ticker} · {formatNumber(position.shares, 2)} shares
+            </Num>
+          </View>
+          <View style={styles.rowTrailing}>
+            <Num size={14} weight="medium">{formatUsd(position.valueUsd)}</Num>
+            <Num size={11.5} color={ink.quaternary} style={styles.rowSub}>
+              {formatUsd(position.priceUsd, { digits: 2 })}
+            </Num>
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
@@ -440,6 +564,7 @@ const styles = StyleSheet.create({
   cardAccent: { borderWidth: 1, borderColor: stroke.onAccent, ...shadow.accent },
   cardMuted: { backgroundColor: fill.subtle, borderWidth: 1, borderColor: stroke.raised },
   cardValue: { marginTop: 6 },
+  cardMeta: { marginTop: 6 },
   specular: { position: 'absolute', left: 0, right: 0, top: 0, height: 1, backgroundColor: stroke.specular },
 
   segmentWrap: { paddingHorizontal: space.gutter, marginTop: space.xl },
@@ -475,6 +600,9 @@ const styles = StyleSheet.create({
   panelCount: { marginTop: 3 },
   addButton: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.md, backgroundColor: palette.cobalt },
   companyList: { paddingHorizontal: 10 },
+  groupLabel: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 8, borderTopWidth: 1, borderTopColor: stroke.hairline, backgroundColor: fill.subtle },
+  groupLabelObserved: { marginTop: 4 },
+  observedBadge: { flexShrink: 0, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.pill, borderWidth: 1, borderColor: stroke.raised, backgroundColor: fill.muted },
 
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 13, paddingHorizontal: 8, paddingVertical: 16 },
   rowDivided: { borderTopWidth: 1, borderTopColor: stroke.hairline },

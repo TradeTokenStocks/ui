@@ -3,6 +3,7 @@
 import { PrivyProvider } from '@privy-io/react-auth';
 
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { BrokerageHoldingsProvider } from '@/features/connections/hooks/use-brokerage-holdings';
 import { defaultChain, supportedChains } from '@/lib/chains';
 import { privyAppId, privyClientId } from '@/lib/privy';
 import { SessionProvider } from '@/lib/session';
@@ -40,7 +41,7 @@ function PrivyGate({ children }: { children: React.ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
         <StandardWagmiProvider config={wagmiConfig}>
-          {children}
+          <BrokerageHoldingsProvider>{children}</BrokerageHoldingsProvider>
         </StandardWagmiProvider>
       </QueryClientProvider>
     )
@@ -66,7 +67,7 @@ function PrivyGate({ children }: { children: React.ReactNode }) {
       }}>
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
-          {children}
+          <BrokerageHoldingsProvider>{children}</BrokerageHoldingsProvider>
         </WagmiProvider>
       </QueryClientProvider>
     </PrivyProvider>

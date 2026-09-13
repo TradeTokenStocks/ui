@@ -1,5 +1,6 @@
+'use client';
+
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import {
   executableTotalUsd,
   formatNumber,
@@ -10,7 +11,6 @@ import {
   type CompanyDetail,
   type Representation,
 } from '@tradetoken/domain';
-import { companyDetails } from '@tradetoken/domain/fixtures';
 
 import { DitherField } from '@/components/dither-field';
 import {
@@ -23,6 +23,7 @@ import {
   SectionLabel,
 } from '@/components/primitives';
 import { Button } from '@/components/ui/button';
+import { useBrokerageHoldings, type BrokerageHoldings } from '@/features/connections/hooks/use-brokerage-holdings';
 import { cn } from '@/lib/utils';
 
 /**
@@ -35,9 +36,59 @@ const TINTS: Record<Representation['tint'], string> = {
   outline: 'border border-white/20',
 };
 
-export function CompanyScreen({ ticker }: { ticker: string }) {
-  const company = companyDetails[ticker.toUpperCase()];
-  if (!company) notFound();
+/**
+ * The company's exposure, reconciled against the live brokerage.
+ *
+ * A linked brokerage replaces the fixture's observed leg with what it actually
+ * holds, rather than showing both. Everything downstream — the headline total,
+ * the share-equivalents, the stacked bar, the allocatable figure — is derived
+ * from the resulting legs, so the page cannot disagree with itself or with the
+ * portfolio list that led here.
+ */
+function reconcile(company: CompanyDetail, brokerage: BrokerageHoldings): CompanyDetail {
+  const representations = brokerage.connected
+    ? observedLegs(company, brokerage)
+    : company.representations;
+
+  const totalUsd = representations.reduce((sum, rep) => sum + rep.valueUsd, 0);
+  return {
+    ...company,
+    totalUsd,
+    // Share-equivalents are value over price, which is how the fixture's own
+    // figures were derived — recomputing keeps the unit honest when the legs
+    // change underneath it.
+    shareEquivalents: company.priceUsd > 0 ? totalUsd / company.priceUsd : 0,
+    representations: representations.map((rep) => ({
+      ...rep,
+      sharePct: totalUsd > 0 ? (rep.valueUsd / totalUsd) * 100 : 0,
+    })),
+  };
+}
+
+function observedLegs(company: CompanyDetail, brokerage: BrokerageHoldings): Representation[] {
+  const onchain = company.representations.filter((rep) => rep.executable);
+  const position = brokerage.positions.find(
+    (item) => item.ticker.toUpperCase() === company.ticker.toUpperCase(),
+  );
+  if (!position) return onchain;
+
+  return [
+    ...onchain,
+    {
+      id: `${company.ticker}-observed`,
+      label: `Brokerage · ${brokerage.institution ?? 'SnapTrade'}`,
+      detail: `${formatNumber(position.shares, 2)} shares · ${formatUsd(position.priceUsd, { digits: 2 })} each`,
+      valueUsd: position.valueUsd,
+      tint: 'outline',
+      executable: false,
+      sharePct: 0,
+    },
+  ];
+}
+
+export function CompanyScreen({ company: fixture }: { company: CompanyDetail }) {
+  const brokerage = useBrokerageHoldings();
+  const company = reconcile(fixture, brokerage);
 
   const total = splitUsd(company.totalUsd);
   const executable = executableTotalUsd(company);
@@ -75,7 +126,8 @@ export function CompanyScreen({ ticker }: { ticker: string }) {
         </div>
 
         <p className="mt-6 text-[12.5px] font-medium text-ink-tertiary">
-          Exposure across {company.representations.length} representations
+          Exposure across {company.representations.length}{' '}
+          {company.representations.length === 1 ? 'representation' : 'representations'}
         </p>
         <Balance whole={total.whole} cents={total.cents} className="mt-1.5" />
         <Num className="mt-2 block text-[12.5px] font-medium text-ink-quaternary">
@@ -141,8 +193,4 @@ export function CompanyScreen({ ticker }: { ticker: string }) {
       </section>
     </div>
   );
-}
-
-export function companyExists(ticker: string): CompanyDetail | undefined {
-  return companyDetails[ticker.toUpperCase()];
 }

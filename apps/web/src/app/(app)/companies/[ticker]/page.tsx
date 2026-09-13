@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { companyDetails } from '@tradetoken/domain/fixtures';
 
 import { CompanyScreen } from '@/features/company/company-screen';
@@ -17,11 +18,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: `${company.name} exposure`,
-    description: `${company.name} held across ${company.representations.length} representations — brokerage, Coinbase B20 and partner mints — with only the onchain legs allocatable.`,
+    description: `${company.name} held across brokerage, Coinbase B20 and partner mints — with only the onchain legs allocatable.`,
   };
 }
 
 export default async function CompanyPage({ params }: Props) {
   const { ticker } = await params;
-  return <CompanyScreen ticker={ticker} />;
+  // Resolved here rather than in the screen: the lookup and its 404 are the
+  // server's to decide, and the screen reconciles against a live connection it
+  // can only read in the browser.
+  const company = companyDetails[ticker.toUpperCase()];
+  if (!company) notFound();
+  return <CompanyScreen company={company} />;
 }

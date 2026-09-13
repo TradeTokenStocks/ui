@@ -14,9 +14,14 @@ import {
   formatUsd,
   isGain,
   splitUsd,
+  type CompanyDetail,
   type Representation,
 } from '@tradetoken/domain';
 import { companyDetails } from '@tradetoken/domain/fixtures';
+import {
+  useBrokerageHoldings,
+  type BrokerageHoldings,
+} from '@/features/connections/hooks/use-brokerage-holdings';
 import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
 
 const FIELD_HEIGHT = 340;
@@ -27,12 +32,62 @@ const TINTS: Record<Representation['tint'], { color: string; glow?: string }> = 
   outline: { color: 'transparent' },
 };
 
+/**
+ * The company's exposure, reconciled against the live brokerage.
+ *
+ * A linked brokerage replaces the fixture's observed leg with what it actually
+ * holds, rather than showing both. The headline total, the share-equivalents,
+ * the stacked bar and the allocatable figure are all derived from the resulting
+ * legs, so this page cannot disagree with itself or with the portfolio row that
+ * led here.
+ */
+function reconcile(company: CompanyDetail, brokerage: BrokerageHoldings): CompanyDetail {
+  const representations = brokerage.connected
+    ? observedLegs(company, brokerage)
+    : company.representations;
+
+  const totalUsd = representations.reduce((sum, rep) => sum + rep.valueUsd, 0);
+  return {
+    ...company,
+    totalUsd,
+    // Value over price, which is how the fixture's own figures were derived.
+    shareEquivalents: company.priceUsd > 0 ? totalUsd / company.priceUsd : 0,
+    representations: representations.map((rep) => ({
+      ...rep,
+      sharePct: totalUsd > 0 ? (rep.valueUsd / totalUsd) * 100 : 0,
+    })),
+  };
+}
+
+function observedLegs(company: CompanyDetail, brokerage: BrokerageHoldings): Representation[] {
+  const onchain = company.representations.filter((rep) => rep.executable);
+  const position = brokerage.positions.find(
+    (item) => item.ticker.toUpperCase() === company.ticker.toUpperCase(),
+  );
+  if (!position) return onchain;
+
+  return [
+    ...onchain,
+    {
+      id: `${company.ticker}-observed`,
+      label: `Brokerage · ${brokerage.institution ?? 'SnapTrade'}`,
+      detail: `${formatNumber(position.shares, 2)} shares · ${formatUsd(position.priceUsd, { digits: 2 })} each`,
+      valueUsd: position.valueUsd,
+      tint: 'outline',
+      executable: false,
+      sharePct: 0,
+    },
+  ];
+}
+
 export function CompanyScreen() {
   const { ticker } = useLocalSearchParams<{ ticker: string }>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const brokerage = useBrokerageHoldings();
 
-  const company = companyDetails[ticker?.toUpperCase() ?? ''];
+  const fixture = companyDetails[ticker?.toUpperCase() ?? ''];
+  const company = fixture ? reconcile(fixture, brokerage) : undefined;
 
   if (!company) {
     return (
@@ -91,7 +146,8 @@ export function CompanyScreen() {
 
         <View style={styles.summary}>
           <Body size={12.5} weight="medium" color={ink.tertiary}>
-            Exposure across {company.representations.length} representations
+            Exposure across {company.representations.length}{' '}
+            {company.representations.length === 1 ? 'representation' : 'representations'}
           </Body>
           <Display size={46} style={styles.total}>
             {total.whole}

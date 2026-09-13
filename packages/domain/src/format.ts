@@ -66,6 +66,25 @@ export function isGain(changePct: number) {
 }
 
 /**
+ * When observed data was last true, in UTC.
+ *
+ * The clock is deliberately absolute rather than "2 hours ago": the point the
+ * connections screen makes is that brokerage data lags, and a relative label
+ * invites you to read a daily snapshot as a live one. Anything inside a minute
+ * is the exception, because a refresh you just pressed needs to acknowledge
+ * itself.
+ */
+export function formatSyncedAt(iso: string | null, now = Date.now()): string {
+  if (!iso) return 'Never';
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return 'Unknown';
+  if (now - at < 60_000) return 'Just now';
+  const hours = `${new Date(at).getUTCHours()}`.padStart(2, '0');
+  const minutes = `${new Date(at).getUTCMinutes()}`.padStart(2, '0');
+  return `${hours}:${minutes} UTC`;
+}
+
+/**
  * A ledger row's trailing figure. Money is signed and shown to the cent,
  * multipliers get four places because the fourth is where a cash dividend
  * actually shows up, and an action renders its own label.
