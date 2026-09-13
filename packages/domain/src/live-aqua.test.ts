@@ -13,6 +13,7 @@ import {
   decodeMultiplierGuardFailure,
   multiplierGuardErrorAbi,
   stockMintCall,
+  swapVmAbi,
 } from "./contracts";
 import {
   buildDockCall,
@@ -155,7 +156,17 @@ describe("live Aqua integration", () => {
     });
     expect(swap.to).toBe(deployment.contracts.aquaSwapVmRouter);
     expect(quote.to).toBe(deployment.contracts.aquaSwapVmRouter);
-    expect(swap.data).not.toBe(quote.data);
+    expect(swap.data.slice(0, 10)).toBe("0xa69f95bd");
+    expect(quote.data.slice(0, 10)).toBe("0xb7ebf0c5");
+    const decodedQuote = decodeFunctionData({
+      abi: swapVmAbi,
+      data: quote.data,
+    });
+    expect(decodedQuote.functionName).toBe("quote");
+    expect(decodedQuote.args?.length).toBe(3);
+    const [builtOrder, , takerData] = decodedQuote.args!;
+    expect(builtOrder.data.startsWith(tokenA.address)).toBeTrue();
+    expect(BigInt(`0x${takerData.slice(2, 46)}`) & 0x80n).toBe(0x80n);
   });
 
   test("values token units back to USD through the multiplier", () => {
@@ -225,7 +236,6 @@ describe("live Aqua integration", () => {
       abi: multiplierGuardErrorAbi,
       errorName: "CurrentMultiplierIsNotInRange",
       args: [
-        "0x5000000000000000000000000000000000000005",
         tokenB.address,
         1_100_000_000_000_000_000n,
         950_000_000_000_000_000n,

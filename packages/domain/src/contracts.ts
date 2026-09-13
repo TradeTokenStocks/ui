@@ -1,5 +1,4 @@
 import { ABI as AquaSdkAbi } from "@1inch/aqua-sdk";
-import { ABI as SwapVmSdkAbi } from "@1inch/swap-vm-sdk";
 import { decodeErrorResult } from "viem";
 
 import type {
@@ -115,14 +114,66 @@ export const stockTokenAbi = [
 ] as const;
 
 export const aquaAbi = AquaSdkAbi.AQUA_ABI;
-export const swapVmAbi = SwapVmSdkAbi.SWAP_VM_ABI;
+
+const swapVmOrderComponents = [
+  { name: "maker", type: "address" },
+  { name: "traits", type: "uint256" },
+  { name: "data", type: "bytes" },
+] as const;
+
+/** ABI of the deployed TradeTokenStocks fork, whose token pair lives in Order.data. */
+export const swapVmAbi = [
+  {
+    type: "function",
+    name: "AQUA",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "WETH",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "quote",
+    stateMutability: "view",
+    inputs: [
+      { name: "order", type: "tuple", components: swapVmOrderComponents },
+      { name: "amount", type: "uint256" },
+      { name: "takerTraitsAndData", type: "bytes" },
+    ],
+    outputs: [
+      { name: "amountIn", type: "uint256" },
+      { name: "amountOut", type: "uint256" },
+      { name: "orderHash", type: "bytes32" },
+    ],
+  },
+  {
+    type: "function",
+    name: "swap",
+    stateMutability: "payable",
+    inputs: [
+      { name: "order", type: "tuple", components: swapVmOrderComponents },
+      { name: "amount", type: "uint256" },
+      { name: "takerTraitsAndData", type: "bytes" },
+    ],
+    outputs: [
+      { name: "amountIn", type: "uint256" },
+      { name: "amountOut", type: "uint256" },
+      { name: "orderHash", type: "bytes32" },
+    ],
+  },
+] as const;
 
 export const multiplierGuardErrorAbi = [
   {
     type: "error",
     name: "CurrentMultiplierIsNotInRange",
     inputs: [
-      { name: "taker", type: "address" },
       { name: "token", type: "address" },
       { name: "currentMultiplier", type: "uint256" },
       { name: "minMultiplier", type: "uint256" },
@@ -146,8 +197,7 @@ function decodedGuardFailure(value: unknown): MultiplierGuardFailure | null {
     "args" in value &&
     Array.isArray(value.args)
   ) {
-    const [, token, currentMultiplier, minMultiplier, maxMultiplier] =
-      value.args;
+    const [token, currentMultiplier, minMultiplier, maxMultiplier] = value.args;
     if (
       typeof token === "string" &&
       typeof currentMultiplier === "bigint" &&

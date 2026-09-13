@@ -11,6 +11,7 @@
   "scripts": {
     "deployment:check": "bun run scripts/check-deployment.ts",
     "infrastructure:check": "bun run scripts/check-deployment.ts --infrastructure-only",
+    "position:check": "bun run scripts/check-position-registration.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
