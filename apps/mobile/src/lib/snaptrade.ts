@@ -36,6 +36,10 @@ export class SnapTradeRequestError extends Error {
   }
 }
 
+export async function clearSnapTradeCredential(): Promise<void> {
+  await SecureStore.deleteItemAsync(CREDENTIAL_KEY);
+}
+
 export async function createSnapTradePortal(accessToken: string): Promise<SnapTradePortalSuccess> {
   if (!snapTradeApiUrl) throw new Error('Live brokerage connections are not configured.');
   const credential = await SecureStore.getItemAsync(CREDENTIAL_KEY);
@@ -49,10 +53,15 @@ export async function createSnapTradePortal(accessToken: string): Promise<SnapTr
   });
   const payload: unknown = await response.json();
   if (!isSnapTradePortalResponse(payload)) throw new Error('The server returned an invalid response.');
-  // Stored even on failure: registration may have succeeded before the portal
-  // call failed, and dropping the secret would orphan that SnapTrade user.
-  if (payload.credential) await SecureStore.setItemAsync(CREDENTIAL_KEY, payload.credential);
-  if (!payload.ok) throw new SnapTradeRequestError(payload.error.code, payload.error.message);
+  if (payload.ok && payload.credential) {
+    await SecureStore.setItemAsync(CREDENTIAL_KEY, payload.credential);
+  }
+  if (!payload.ok) {
+    if (payload.error.code === 'CREDENTIAL_INVALID') {
+      await SecureStore.deleteItemAsync(CREDENTIAL_KEY);
+    }
+    throw new SnapTradeRequestError(payload.error.code, payload.error.message);
+  }
   return payload;
 }
 
@@ -78,6 +87,11 @@ export async function fetchSnapTradeHoldings(
   if (!isSnapTradeHoldingsResponse(payload)) {
     throw new Error('The server returned an invalid response.');
   }
-  if (!payload.ok) throw new SnapTradeRequestError(payload.error.code, payload.error.message);
+  if (!payload.ok) {
+    if (payload.error.code === 'CREDENTIAL_INVALID') {
+      await SecureStore.deleteItemAsync(CREDENTIAL_KEY);
+    }
+    throw new SnapTradeRequestError(payload.error.code, payload.error.message);
+  }
   return payload;
 }

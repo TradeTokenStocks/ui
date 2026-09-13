@@ -1,4 +1,5 @@
 import type { TokenizedStock } from '../types';
+import { hackathonDeployment } from '../deployment';
 
 type StockSeed = Omit<TokenizedStock, 'id' | 'issuer' | 'symbol' | 'walletBalance'>;
 
@@ -12,19 +13,29 @@ const seeds: StockSeed[] = [
 ];
 
 const issuerDetails = {
-  dinari: { prefix: 'd', label: 'Dinari' },
-  xstock: { prefix: 'x', label: 'xStock' },
+  xstock: { suffix: 'x', label: 'xStock' },
+  ondo: { suffix: 'on', label: 'Ondo' },
 } as const;
+
+const deployedAddressById = new Map(
+  hackathonDeployment.status === 'live'
+    ? hackathonDeployment.stocks.map((stock) => [stock.id, stock.address] as const)
+    : [],
+);
 
 export const tokenizedStocks: readonly TokenizedStock[] = seeds.flatMap((stock, stockIndex) =>
   (Object.entries(issuerDetails) as Array<[keyof typeof issuerDetails, (typeof issuerDetails)[keyof typeof issuerDetails]]>).map(
-    ([issuer, details], issuerIndex) => ({
+    ([issuer, details], issuerIndex) => {
+      const id = `${issuer}-${stock.ticker.toLowerCase()}`;
+      return ({
       ...stock,
-      id: `${issuer}-${stock.ticker.toLowerCase()}`,
+      id,
       issuer,
-      symbol: `${details.prefix}${stock.ticker}`,
-      walletBalance: stock.ticker === 'NVDA' ? (issuer === 'dinari' ? 40 : 50) : stockIndex + issuerIndex === 1 ? 12.5 : 0,
-    }),
+      symbol: `${stock.ticker}${details.suffix}`,
+      ...(deployedAddressById.get(id) ? { address: deployedAddressById.get(id)! } : {}),
+      walletBalance: stock.ticker === 'NVDA' ? (issuer === 'xstock' ? 50 : 40) : stockIndex + issuerIndex === 1 ? 12.5 : 0,
+      });
+    },
   ),
 );
 

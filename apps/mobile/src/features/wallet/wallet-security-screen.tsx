@@ -14,6 +14,7 @@ import { defaultChain, supportedChains } from '@/lib/chains';
 import { goBackOrHome } from '@/navigation/go-back';
 import { fill, ink, palette, radius, ramps, shadow, space, stroke } from '@/theme/tokens';
 import { useEmbeddedEthereumWallet, usePrivy } from '@privy-io/expo';
+import { clearSnapTradeCredential } from '@/lib/snaptrade';
 
 const FIELD_HEIGHT = 240;
 
@@ -176,7 +177,17 @@ export function WalletSecurityScreen() {
             </>
           )}
           <View style={{marginTop: 10}}>
-            {user ? (<SecondaryButton label='Sign out' onPress={logout}/>) : (<SecondaryButton label='Sign in with Privy' onPress={() => router.push('/sign-in')}/>)}
+            {user ? (
+              <SecondaryButton
+                label="Sign out"
+                onPress={async () => {
+                  await clearSnapTradeCredential();
+                  await logout();
+                }}
+              />
+            ) : (
+              <SecondaryButton label="Sign in with Privy" onPress={() => router.push('/sign-in')} />
+            )}
           </View>
         </View>
 

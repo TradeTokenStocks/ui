@@ -71,6 +71,8 @@ export type LiveStrategyRecord = {
 export type LiveStrategyToken = {
   address: ContractAddress;
   symbol: string;
+  /** Optional for compatibility with strategies persisted before issuer metadata was stored. */
+  issuer?: string;
   decimals: number;
   reserve: string;
   multiplier: string;
@@ -224,6 +226,7 @@ export async function mintStockPair({
     readMultiplier(client, tokenA),
     readMultiplier(client, tokenB),
   ]);
+  assertInitializedMultipliers(tokenA, multiplierA, tokenB, multiplierB);
   const halfUsd = (Number(amountUsd) / 2).toFixed(6);
   const priceUsdE6 = parseDecimalUnits(priceUsd.toFixed(6), 6);
   const amountA = usdAllocationToTokenUnits({
@@ -319,6 +322,7 @@ export async function openPeggedPosition({
         args: [maker, deployment.contracts.aqua],
       }),
     ]);
+  assertInitializedMultipliers(tokenA, multiplierA, tokenB, multiplierB);
   const priceUsdE6 = parseDecimalUnits(input.priceUsd.toFixed(6), 6);
   const reserveA = usdAllocationToTokenUnits({
     amountUsd: input.amountAUsd,
@@ -388,6 +392,7 @@ export async function openPeggedPosition({
     tokenA: {
       address: tokenA.address,
       symbol: tokenA.symbol,
+      issuer: tokenA.issuer,
       decimals: tokenA.decimals,
       reserve: reserveA.toString(),
       multiplier: multiplierA.toString(),
@@ -395,6 +400,7 @@ export async function openPeggedPosition({
     tokenB: {
       address: tokenB.address,
       symbol: tokenB.symbol,
+      issuer: tokenB.issuer,
       decimals: tokenB.decimals,
       reserve: reserveB.toString(),
       multiplier: multiplierB.toString(),
@@ -405,6 +411,20 @@ export async function openPeggedPosition({
     createdAt: new Date().toISOString(),
     status: "open",
   };
+}
+
+function assertInitializedMultipliers(
+  tokenA: DeployedStockToken,
+  multiplierA: bigint,
+  tokenB: DeployedStockToken,
+  multiplierB: bigint,
+) {
+  const uninitialized = multiplierA <= ZERO ? tokenA : multiplierB <= ZERO ? tokenB : null;
+  if (uninitialized) {
+    throw new Error(
+      `${uninitialized.symbol} multiplier is not initialized. The token admin must call updateMultiplier(1000000000000000000).`,
+    );
+  }
 }
 
 /** Aqua strategy balances, maker wallet balances, and live multipliers. */

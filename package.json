@@ -19,7 +19,10 @@
     "check": "bun run tokens:check && bun run lint && bun run typecheck",
     "verify": "bun run check && bun run build",
     "doctor:mobile": "bun run --cwd apps/mobile doctor",
-    "deployment:check": "bun run --cwd packages/domain deployment:check"
+    "deployment:check": "bun run --cwd packages/domain deployment:check",
+    "infrastructure:check": "bun run --cwd packages/domain infrastructure:check",
+    "position:check": "bun run --cwd packages/domain position:check",
+    "stock-position:check": "bun run --cwd packages/domain stock-position:check"
   },
   "devDependencies": {
     "turbo": "^2.10.12"

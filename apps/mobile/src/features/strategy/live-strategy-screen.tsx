@@ -16,7 +16,7 @@ import {
   space,
   stroke,
 } from "@/theme/tokens";
-import { formatUsd } from "@tradetoken/domain";
+import { formatUsd, hackathonDeployment } from "@tradetoken/domain";
 
 import { useLiveStrategy, type LiveStrategyStage } from "./use-live-strategy";
 
@@ -115,19 +115,19 @@ export function LiveStrategyScreen({
             {formatUsd(record.allocationUsd, { digits: 2 })}
           </Display>
           <Num size={11.5} color={ink.quaternary} style={styles.sub}>
-            Robinhood Testnet · confirmed onchain
+            {hackathonDeployment.chainName} · confirmed onchain
           </Num>
         </View>
 
         <View style={styles.balanceGrid}>
           <BalanceCard
-            issuer="Dinari"
+            issuer={record.tokenA.issuer ?? "xStock"}
             symbol={record.tokenA.symbol}
             amount={tokenAmount(balanceA, record.tokenA.decimals)}
             accent={palette.cobaltText}
           />
           <BalanceCard
-            issuer="xStock"
+            issuer={record.tokenB.issuer ?? "Ondo"}
             symbol={record.tokenB.symbol}
             amount={tokenAmount(balanceB, record.tokenB.decimals)}
             accent={palette.violet}
@@ -254,7 +254,10 @@ export function LiveStrategyScreen({
         ) : null}
 
         <View style={styles.receipt}>
-          <Metric label="Strategy hash" value={shortHash(record.strategyHash)} />
+          <Metric
+            label="Strategy hash"
+            value={shortHash(record.strategyHash)}
+          />
           <Metric
             label="Open transaction"
             value={shortHash(record.shipTransactionHash)}

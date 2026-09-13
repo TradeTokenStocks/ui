@@ -5,9 +5,13 @@ import {
   stockTokenAbi,
 } from "@tradetoken/domain";
 import { useEffect, useState } from "react";
-import { createPublicClient, formatUnits, http, type Address } from "viem";
-
-import { robinHoodTestnet } from "@/lib/chains";
+import {
+  createPublicClient,
+  defineChain,
+  formatUnits,
+  http,
+  type Address,
+} from "viem";
 
 function compactBalance(value: bigint, decimals: number) {
   return Number(formatUnits(value, decimals)).toLocaleString(undefined, {
@@ -34,7 +38,12 @@ export function useLivePairBalances(tokenAId: string, tokenBId: string) {
       const tokenA = deployedStock(deployment, tokenAId);
       const tokenB = deployedStock(deployment, tokenBId);
       const client = createPublicClient({
-        chain: robinHoodTestnet,
+        chain: defineChain({
+          id: deployment.chainId,
+          name: deployment.chainName,
+          nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+          rpcUrls: { default: { http: [deployment.rpcUrl] } },
+        }),
         transport: http(deployment.rpcUrl),
       });
       const [a, b] = await Promise.all([

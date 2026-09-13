@@ -11,11 +11,14 @@ import type { DeployedStockToken, LiveHackathonDeployment } from "./deployment";
 import {
   aquaAbi,
   decodeMultiplierGuardFailure,
+  multiplierUpdateCall,
   multiplierGuardErrorAbi,
   stockMintCall,
+  swapVmAbi,
 } from "./contracts";
 import {
   buildDockCall,
+  buildLiveConcentratedPosition,
   buildLivePeggedPosition,
   buildQuoteCall,
   buildSwapCall,
@@ -27,39 +30,51 @@ import {
 } from "./live-aqua";
 
 const tokenA: DeployedStockToken = {
-  id: "dinari-nvda",
+  id: "xstock-nvda",
   underlying: "NVDA",
-  issuer: "Dinari",
-  name: "Dinari Nvidia",
-  symbol: "dNVDA",
+  issuer: "xStock",
+  name: "NVIDIA xStock",
+  symbol: "NVDAx",
   address: "0x1000000000000000000000000000000000000001",
   decimals: 18,
   multiplierRead: "multiplier",
   mintFunction: "mintTo",
-  multiplierWrite: "setMultiplier",
+  multiplierWrite: "updateMultiplier",
 };
 
 const tokenB: DeployedStockToken = {
   ...tokenA,
-  id: "xstock-nvda",
-  issuer: "xStock",
-  name: "xStock Nvidia",
-  symbol: "xNVDA",
+  id: "ondo-nvda",
+  issuer: "Ondo",
+  name: "NVIDIA (Ondo Tokenized)",
+  symbol: "NVDAon",
   address: "0x2000000000000000000000000000000000000002",
 };
 
 const deployment: LiveHackathonDeployment = {
   status: "live",
-  chainId: 46_630,
-  chainName: "Robinhood Chain Testnet",
-  rpcUrl: "https://rpc.testnet.chain.robinhood.com",
-  explorerUrl: "https://explorer.testnet.chain.robinhood.com",
+  chainId: 11_155_111,
+  chainName: "Ethereum Sepolia",
+  rpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
+  explorerUrl: "https://sepolia.etherscan.io",
   deploymentBlock: 1n,
   swapVmCommit: "a7f38df16b148e95d69725197836acc2459c603a",
   contracts: {
     aqua: "0x3000000000000000000000000000000000000003",
     aquaSwapVmRouter: "0x4000000000000000000000000000000000000004",
   },
+  referenceTokens: [
+    {
+      symbol: "WETH",
+      address: "0x5000000000000000000000000000000000000005",
+      decimals: 18,
+    },
+    {
+      symbol: "USDC",
+      address: "0x6000000000000000000000000000000000000006",
+      decimals: 6,
+    },
+  ],
   strategy: { linearWidth: 20n * 10n ** 27n },
   stocks: [tokenA, tokenB],
 };
@@ -96,6 +111,14 @@ describe("live Aqua integration", () => {
     expect(
       stockMintCall({ ...tokenA, mintFunction: "none" }, tokenB.address, 12n),
     ).toBeNull();
+  });
+
+  test("maps the deployed mock token's multiplier setter", () => {
+    expect(multiplierUpdateCall(tokenA, 10n ** 18n)).toEqual({
+      address: tokenA.address,
+      functionName: "updateMultiplier",
+      args: [10n ** 18n],
+    });
   });
 
   test("builds a decodable guarded, fee-bearing pegged order and Aqua ship call", () => {
@@ -142,7 +165,17 @@ describe("live Aqua integration", () => {
     });
     expect(swap.to).toBe(deployment.contracts.aquaSwapVmRouter);
     expect(quote.to).toBe(deployment.contracts.aquaSwapVmRouter);
-    expect(swap.data).not.toBe(quote.data);
+    expect(swap.data.slice(0, 10)).toBe("0xa69f95bd");
+    expect(quote.data.slice(0, 10)).toBe("0xb7ebf0c5");
+    const decodedQuote = decodeFunctionData({
+      abi: swapVmAbi,
+      data: quote.data,
+    });
+    expect(decodedQuote.functionName).toBe("quote");
+    expect(decodedQuote.args?.length).toBe(3);
+    const [builtOrder, , takerData] = decodedQuote.args!;
+    expect(builtOrder.data.startsWith(tokenA.address)).toBeTrue();
+    expect(BigInt(`0x${takerData.slice(2, 46)}`) & 0x80n).toBe(0x80n);
   });
 
   test("values token units back to USD through the multiplier", () => {
@@ -154,6 +187,36 @@ describe("live Aqua integration", () => {
         tokenDecimals: 18,
       }),
     ).toBe(374_640_000n);
+  });
+
+  test("builds a standard concentrated WETH/USDC strategy", () => {
+    const [weth, usdc] = deployment.referenceTokens;
+    if (!weth || !usdc) throw new Error("Reference tokens are required");
+    const position = buildLiveConcentratedPosition({
+      deployment,
+      maker: "0x7000000000000000000000000000000000000007",
+      tokenA: weth,
+      tokenB: usdc,
+      reserveA: 1n * 10n ** 18n,
+      reserveB: 2_500n * 10n ** 6n,
+      rawPriceMin: 10n ** 18n / 3_500n,
+      rawPriceMax: 10n ** 18n / 1_500n,
+    });
+
+    expect(position.ship.to).toBe(deployment.contracts.aqua);
+    expect(position.strategyHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(decodeLiveOrder(position.encodedOrder).encode().toString()).toBe(
+      position.encodedOrder,
+    );
+    expect(
+      buildQuoteCall({
+        deployment,
+        position,
+        tokenIn: usdc.address,
+        tokenOut: weth.address,
+        amount: 100n * 10n ** 6n,
+      }).to,
+    ).toBe(deployment.contracts.aquaSwapVmRouter);
   });
 
   test("encodes an Aqua dock call for the strategy tokens", () => {
@@ -182,7 +245,6 @@ describe("live Aqua integration", () => {
       abi: multiplierGuardErrorAbi,
       errorName: "CurrentMultiplierIsNotInRange",
       args: [
-        "0x5000000000000000000000000000000000000005",
         tokenB.address,
         1_100_000_000_000_000_000n,
         950_000_000_000_000_000n,

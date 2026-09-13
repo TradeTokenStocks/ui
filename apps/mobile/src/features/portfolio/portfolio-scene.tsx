@@ -34,14 +34,13 @@ import {
   activity,
   companies,
   companyDetails,
-  events,
-  hasUnreviewedEvents,
   tokenizedStocks,
   totals,
 } from '@tradetoken/domain/fixtures';
 import { useBrokerageHoldings } from '@/features/connections/hooks/use-brokerage-holdings';
 import { useAddedStockHoldings } from '@/features/stocks/stock-holdings-store';
 import { useWalletStockHoldings } from '@/features/stocks/use-wallet-stock-holdings';
+import { useIndexedEvents } from '@/features/events/use-indexed-events';
 
 /** Height of the dither field at the top of the screen. */
 const FIELD_HEIGHT = 380;
@@ -56,12 +55,6 @@ function onchainValueUsd(company: CompanyExposure): number {
   return company.valueUsd * (company.onchainPct / 100);
 }
 
-const SEGMENTS: Segment[] = [
-  { key: 'holdings', label: 'Holdings' },
-  { key: 'events', label: 'Events', badge: hasUnreviewedEvents },
-  { key: 'activity', label: 'Activity' },
-];
-
 /**
  * The portfolio destination, chrome-less: no dock, no scene transition of its
  * own. The dock shell keeps it mounted across switches, so the segment choice
@@ -73,6 +66,12 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
   const added = useAddedStockHoldings();
   const brokerage = useBrokerageHoldings();
   const walletStocks = useWalletStockHoldings();
+  const indexedEvents = useIndexedEvents();
+  const segments: Segment[] = [
+    { key: 'holdings', label: 'Holdings' },
+    { key: 'events', label: 'Events', badge: indexedEvents.events.length > 0 },
+    { key: 'activity', label: 'Activity' },
+  ];
   const { user } = usePrivy();
 
   const emailAccount = user?.linked_accounts?.find((acc) => acc.type === 'email');
@@ -95,38 +94,74 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
     : totals.walletAllocatableUsd + addedTotalUsd;
   const brokerageObservedUsd = brokerage.connected ? brokerage.totalValueUsd : 0;
   const exposure = splitUsd(walletAllocatableUsd + brokerageObservedUsd);
-  const visibleCompanies: CompanyExposure[] = [
-    ...companies.map((company) => {
-      const holding = added[company.ticker];
-      /**
-       * Once a brokerage is linked, observed exposure has a real source, and
-       * these rows give up their fixture's share of it: the same company would
-       * otherwise claim an invented brokerage split here and a true one in the
-       * observed list below.
-       */
-      if (brokerage.connected) {
-        const onchainUsd = onchainValueUsd(company) + (holding?.amountUsd ?? 0);
-        return {
-          ...company,
-          valueUsd: onchainUsd,
-          observedPct: 0,
-          onchainPct: 100,
-          ...(holding ? { dividendPreference: holding.preference } : {}),
-        };
-      }
-      if (!holding) return company;
-      const valueUsd = company.valueUsd + holding.amountUsd;
-      const observedValueUsd = company.valueUsd * (company.observedPct / 100);
-      const observedPct = Math.round((observedValueUsd / valueUsd) * 100);
-      return { ...company, valueUsd, observedPct, onchainPct: 100 - observedPct, dividendPreference: holding.preference };
-    }),
-    ...Object.entries(added)
-      .filter(([ticker]) => !companies.some((company) => company.ticker === ticker))
-      .map(([ticker, holding]) => {
-        const stock = tokenizedStocks.find((item) => item.ticker === ticker)!;
-        return { ticker, name: stock.name, initials: ticker.slice(0, 2), observedPct: 0, onchainPct: 100, valueUsd: holding.amountUsd, changePct: stock.changePct, dividendPreference: holding.preference };
-      }),
-  ];
+  const liveHoldingsByTicker = (walletStocks.holdings ?? []).reduce<Record<string, number>>((acc, item) => {
+    if (item.valueUsd > 0) {
+      acc[item.underlying] = (acc[item.underlying] ?? 0) + item.valueUsd;
+    }
+    return acc;
+  }, {});
+
+  const liveTickers = Array.from(
+    new Set([...Object.keys(liveHoldingsByTicker), ...Object.keys(added)])
+  );
+
+  const visibleCompanies: CompanyExposure[] = walletStocks.live
+    ? liveTickers
+        .map((ticker) => {
+          const stock = tokenizedStocks.find((item) => item.ticker === ticker);
+          const holding = added[ticker];
+          const walletValue = (liveHoldingsByTicker[ticker] ?? 0) + (holding?.amountUsd ?? 0);
+          const brokeragePos = brokerage.connected
+            ? brokerage.positions.find((p) => p.ticker.toUpperCase() === ticker.toUpperCase())
+            : undefined;
+          const brokerageValue = brokeragePos?.valueUsd ?? 0;
+          const totalValue = walletValue + brokerageValue;
+          const onchainPct = totalValue > 0 ? Math.round((walletValue / totalValue) * 100) : 100;
+          const observedPct = 100 - onchainPct;
+
+          return {
+            ticker,
+            name: stock?.name ?? ticker,
+            initials: ticker.slice(0, 2),
+            valueUsd: totalValue,
+            changePct: stock?.changePct ?? 0,
+            observedPct,
+            onchainPct,
+            ...(holding ? { dividendPreference: holding.preference } : {}),
+          };
+        })
+        .filter((company) => company.valueUsd > 0)
+    : [
+        ...companies.map((company) => {
+          const holding = added[company.ticker];
+          return {
+            ...company,
+            valueUsd: onchainValueUsd(company) + (holding?.amountUsd ?? 0),
+            ...(holding ? { dividendPreference: holding.preference } : {}),
+          };
+        }),
+        ...Object.entries(added)
+          .filter(([ticker]) => !companies.some((company) => company.ticker === ticker))
+          .map(([ticker, holding]) => {
+            const stock = tokenizedStocks.find((item) => item.ticker === ticker)!;
+            return {
+              ticker,
+              name: stock.name,
+              initials: ticker.slice(0, 2),
+              observedPct: 0,
+              onchainPct: 100,
+              valueUsd: holding.amountUsd,
+              changePct: stock.changePct,
+              dividendPreference: holding.preference,
+            };
+          }),
+      ];
+
+  const unmergedBrokeragePositions = brokerage.connected
+    ? brokerage.positions.filter(
+        (p) => !visibleCompanies.some((c) => c.ticker.toUpperCase() === p.ticker.toUpperCase()),
+      )
+    : [];
 
   return (
     <View style={styles.root}>
@@ -267,7 +302,7 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
         </View>
 
         <View style={styles.segmentWrap}>
-          <Segmented segments={SEGMENTS} value={segment} onChange={setSegment} />
+          <Segmented segments={segments} value={segment} onChange={setSegment} />
         </View>
 
         <View style={styles.panel}>
@@ -284,7 +319,7 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
                         Companies
                       </Body>
                       <Body size={11.5} weight="medium" color={ink.quaternary} style={styles.panelCount}>
-                        {formatNumber(visibleCompanies.length + brokerage.positions.length)} holdings
+                        {formatNumber(visibleCompanies.length + unmergedBrokeragePositions.length)} holdings
                       </Body>
                     </View>
                     <Pressable
@@ -296,24 +331,41 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
                     </Pressable>
                   </View>
                 </View>
-                {/* The two custody models are named once a real brokerage is
-                    linked. A company can honestly appear in both groups —
-                    holding NVDA onchain and at a broker is the point — but only
-                    if the screen says which number means what. */}
                 {brokerage.connected ? (
                   <View style={styles.groupLabel}>
                     <Body size={10.5} weight="semibold" color={ink.faint} tracking={1.1}>
-                      ONCHAIN · ALLOCATABLE
+                      CONSOLIDATED · ONCHAIN & OBSERVED
                     </Body>
                   </View>
                 ) : null}
-                <View style={styles.companyList}>
-                  {visibleCompanies.map((company, index) => (
-                    <CompanyRow key={company.ticker} company={company} divided={index > 0} />
-                  ))}
-                </View>
+                {visibleCompanies.length > 0 ? (
+                  <View style={styles.companyList}>
+                    {visibleCompanies.map((company, index) => (
+                      <CompanyRow key={company.ticker} company={company} divided={index > 0} />
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.emptyContainer}>
+                    <Body size={13} weight="medium" color={ink.tertiary}>
+                      No onchain stock tokens yet
+                    </Body>
+                    <Body size={11.5} color={ink.faint} style={styles.emptyDescription}>
+                      Mint tokenized stock pairs to commit into Aqua strategies.
+                    </Body>
+                    <Pressable
+                      onPress={() => router.push('/stocks/add' as Href)}
+                      style={({ pressed }) => [
+                        styles.emptyButton,
+                        pressed && { opacity: 0.72 },
+                      ]}>
+                      <Body size={11.5} weight="medium" color={palette.cobaltText}>
+                        ＋ Mint test stocks
+                      </Body>
+                    </Pressable>
+                  </View>
+                )}
 
-                {brokerage.connected && brokerage.positions.length > 0 ? (
+                {brokerage.connected && unmergedBrokeragePositions.length > 0 ? (
                   <>
                     <View style={[styles.groupLabel, styles.groupLabelObserved]}>
                       <Body size={10.5} weight="semibold" color={ink.faint} tracking={1.1}>
@@ -321,7 +373,7 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
                       </Body>
                     </View>
                     <View style={styles.companyList}>
-                      {brokerage.positions.map((position, index) => (
+                      {unmergedBrokeragePositions.map((position, index) => (
                         <ObservedRow key={position.ticker} position={position} divided={index > 0} />
                       ))}
                     </View>
@@ -330,7 +382,16 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
               </>
             ) : (
               <View style={styles.ledger}>
-                {(segment === 'events' ? events : activity).map((row) => (
+                {segment === 'events' && indexedEvents.loading ? (
+                  <Body size={12} color={ink.faint} style={styles.ledgerStatus}>Loading indexed events…</Body>
+                ) : null}
+                {segment === 'events' && indexedEvents.error ? (
+                  <Body size={12} color={palette.amberBright} style={styles.ledgerStatus}>{indexedEvents.error}</Body>
+                ) : null}
+                {segment === 'events' && !indexedEvents.loading && !indexedEvents.error && indexedEvents.events.length === 0 ? (
+                  <Body size={12} color={ink.faint} style={styles.ledgerStatus}>No multiplier updates indexed yet.</Body>
+                ) : null}
+                {(segment === 'events' ? indexedEvents.events : activity).map((row) => (
                   <LedgerItem key={row.id} row={row} />
                 ))}
               </View>
@@ -446,12 +507,18 @@ function CompanyRow({ company, divided }: { company: CompanyExposure; divided: b
           <View style={[styles.barObserved, { flex: company.observedPct }]} />
         </View>
         <View style={styles.splitLabels}>
-          <Num size={10.5} color={palette.cobaltText}>
-            Wallet {company.onchainPct}%
-          </Num>
-          <Num size={10.5} color={ink.faint}>
-            Brokerage {company.observedPct}%
-          </Num>
+          {/* A zero side is noise, not information — a full bar already says
+              which custody model holds everything. */}
+          {company.onchainPct > 0 ? (
+            <Num size={10.5} color={palette.cobaltText}>
+              Wallet {company.onchainPct}%
+            </Num>
+          ) : null}
+          {company.observedPct > 0 ? (
+            <Num size={10.5} color={ink.faint} style={styles.observedLabel}>
+              Brokerage {company.observedPct}%
+            </Num>
+          ) : null}
         </View>
       </View>
     </Pressable>
@@ -604,6 +671,27 @@ const styles = StyleSheet.create({
   panelCount: { marginTop: 3 },
   addButton: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.md, backgroundColor: palette.cobalt },
   companyList: { paddingHorizontal: 10 },
+  emptyContainer: {
+    paddingVertical: space.xl,
+    paddingHorizontal: space.lg,
+    alignItems: 'center',
+  },
+  emptyDescription: {
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  emptyButton: {
+    marginTop: space.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: radius.md,
+    backgroundColor: fill.muted,
+    borderWidth: 1,
+    borderColor: stroke.hairline,
+  },
   groupLabel: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 8, borderTopWidth: 1, borderTopColor: stroke.hairline, backgroundColor: fill.subtle },
   groupLabelObserved: { marginTop: 4 },
   observedBadge: { flexShrink: 0, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.pill, borderWidth: 1, borderColor: stroke.raised, backgroundColor: fill.muted },
@@ -643,9 +731,11 @@ const styles = StyleSheet.create({
   },
   barObserved: { backgroundColor: fill.active },
   barOnchain: { height: '100%' },
+  observedLabel: { marginLeft: 'auto' },
   splitLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
 
   ledger: { paddingHorizontal: 2, paddingVertical: 4 },
+  ledgerStatus: { paddingHorizontal: 18, paddingVertical: 24, textAlign: 'center' },
   ledgerRow: {
     flexDirection: 'row',
     alignItems: 'center',

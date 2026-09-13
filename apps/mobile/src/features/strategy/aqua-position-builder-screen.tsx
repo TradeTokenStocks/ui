@@ -23,6 +23,7 @@ import {
   space,
   stroke,
 } from "@/theme/tokens";
+import { formatUsd, hackathonDeployment } from "@tradetoken/domain";
 import {
   pairedRepresentations,
   tokenizedStocks,
@@ -30,7 +31,11 @@ import {
 
 import { useLivePairBalances } from "./use-live-pair-balances";
 
-const QUICK_PAIRS = ["NVDA", "AAPL", "TSLA", "MSFT"];
+const QUICK_PAIRS = hackathonDeployment.status === "live"
+  ? hackathonDeployment.stocks
+      .filter((stock) => stock.issuer === "xStock")
+      .map((stock) => stock.underlying)
+  : ["NVDA", "AAPL", "TSLA", "MSFT"];
 const FEES = [5, 30, 100];
 
 export function AquaPositionBuilderScreen() {
@@ -99,7 +104,7 @@ export function AquaPositionBuilderScreen() {
               {tokenA.symbol} / {tokenB.symbol}
             </Body>
             <Body size={11} color={ink.quaternary} style={styles.subline}>
-              {tokenA.name} · Dinari + xStock
+              {tokenA.name} · xStock + Ondo
             </Body>
           </View>
           <Body size={20} color={ink.faint}>
@@ -192,15 +197,17 @@ export function AquaPositionBuilderScreen() {
           <View style={styles.amounts}>
             <AmountInput
               symbol={tokenA.symbol}
-              issuer="Dinari"
+              issuer={tokenA.issuer === "xstock" ? "xStock" : "Ondo"}
               balance={liveBalances?.a ?? String(tokenA.walletBalance)}
+              unitUsd={tokenA.priceUsd * tokenA.multiplier}
               value={amountA}
               onChange={setAmountA}
             />
             <AmountInput
               symbol={tokenB.symbol}
-              issuer="xStock"
+              issuer={tokenB.issuer === "xstock" ? "xStock" : "Ondo"}
               balance={liveBalances?.b ?? String(tokenB.walletBalance)}
+              unitUsd={tokenB.priceUsd * tokenB.multiplier}
               value={amountB}
               onChange={setAmountB}
             />
@@ -329,7 +336,11 @@ function PairSelector({
   const insets = useSafeAreaInsets();
   const stocks = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    const unique = tokenizedStocks.filter((stock) => stock.issuer === "dinari");
+    const unique = tokenizedStocks.filter(
+      (stock) =>
+        stock.issuer === "xstock" &&
+        (hackathonDeployment.status !== "live" || Boolean(stock.address)),
+    );
     return normalized
       ? unique.filter((stock) =>
           `${stock.ticker} ${stock.name}`.toLowerCase().includes(normalized),
@@ -349,7 +360,7 @@ function PairSelector({
           <View>
             <Display size={22}>Select stock pair</Display>
             <Body size={11.5} color={ink.quaternary} style={styles.subline}>
-              Dinari ↔ xStock representations
+              xStock ↔ Ondo representations
             </Body>
           </View>
           <Pressable
@@ -416,8 +427,8 @@ function PairSelector({
 function TokenStack() {
   return (
     <View style={styles.tokenStack}>
-      <TokenMark issuer="D" />
-      <TokenMark issuer="X" overlap />
+      <TokenMark issuer="X" />
+      <TokenMark issuer="O" overlap />
     </View>
   );
 }
@@ -426,7 +437,7 @@ function TokenMark({
   issuer,
   overlap = false,
 }: {
-  issuer: "D" | "X";
+  issuer: "X" | "O";
   overlap?: boolean;
 }) {
   return (
@@ -434,7 +445,7 @@ function TokenMark({
       style={[
         styles.tokenMark,
         overlap && styles.tokenOverlap,
-        issuer === "X" && styles.tokenMarkAlt,
+        issuer === "O" && styles.tokenMarkAlt,
       ]}
     >
       <Body size={11} weight="bold" color="#fff">
@@ -448,12 +459,16 @@ function AmountInput({
   symbol,
   issuer,
   balance,
+  unitUsd,
   value,
   onChange,
 }: {
   symbol: string;
   issuer: string;
+  /** Token units held, as displayed. */
   balance: string;
+  /** USD per token unit, so the balance reads in the same unit as the input. */
+  unitUsd: number;
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -464,7 +479,7 @@ function AmountInput({
           {issuer}
         </Body>
         <Num size={10} color={ink.faint}>
-          Bal {balance}
+          {balance} {symbol} · {formatUsd(Number(balance.replace(/,/g, "")) * unitUsd)}
         </Num>
       </View>
       <View style={styles.amountInputRow}>

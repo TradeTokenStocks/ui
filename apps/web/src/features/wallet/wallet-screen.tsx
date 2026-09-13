@@ -2,7 +2,8 @@
 
 import { formatUsd } from '@tradetoken/domain';
 import { approvalThresholdUsd, wallet } from '@tradetoken/domain/fixtures';
-import { Check, Copy } from 'lucide-react';
+import { usePrivy } from '@privy-io/react-auth';
+import { Check, Copy, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -11,7 +12,9 @@ import { ScreenField } from '@/components/screen-field';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { useChains, useConnection, useSwitchChain } from 'wagmi';
+import { isPrivyConfigured } from '@/lib/privy';
+import { useSession } from '@/lib/session';
+import { useChains, useConnection, useDisconnect, useSwitchChain } from 'wagmi';
 
 import {
   defaultChain
@@ -23,11 +26,13 @@ export function WalletScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [sandboxChainId, setSandboxChainId] = useState<number>(defaultChain.id);
 
+  const { authenticated } = usePrivy();
   const { address: liveAddress, isConnected, chain } = useConnection();
   const chains = useChains();
   const { mutate: switchChain } = useSwitchChain();
 
-  const activeAddress = isConnected && liveAddress ? liveAddress : wallet.address;
+  const isWalletActive = isConnected && Boolean(liveAddress) && (!isPrivyConfigured || authenticated);
+  const activeAddress = isWalletActive ? liveAddress! : wallet.address;
   const shortAddress = `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}`;
   const currentChainId = isConnected && chain?.id ? chain.id : sandboxChainId;
   const currentChain = chains.find((c) => c.id === currentChainId) ?? defaultChain;
@@ -60,7 +65,14 @@ export function WalletScreen() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <Display className="text-2xl text-white">{shortAddress}</Display>
-            <p className="mt-1 text-[12px] text-white/70">{activeChainName} · embedded wallet</p>
+            {isPrivyConfigured ? (
+              <PrivyWalletSubtitle
+                fallback={`${activeChainName} · embedded wallet`}
+                chainName={activeChainName}
+              />
+            ) : (
+              <p className="mt-1 text-[12px] text-white/70">{activeChainName} · embedded wallet</p>
+            )}
           </div>
           <span className="rounded-pill border border-white/25 bg-white/10 px-2.5 py-1 text-[10.5px] font-semibold text-white">
             Self-custody
@@ -109,6 +121,7 @@ export function WalletScreen() {
           <Button asChild variant="secondary">
             <Link href="/funding">Add funds</Link>
           </Button>
+          {isPrivyConfigured ? <PrivyCardAuthButton /> : null}
         </div>
       </div>
 
@@ -201,9 +214,13 @@ export function WalletScreen() {
         <Button asChild variant="outline">
           <Link href="/automation">Scoped automation</Link>
         </Button>
-        <Button asChild variant="ghost">
-          <Link href="/sign-in">Sign in with Privy</Link>
-        </Button>
+        {isPrivyConfigured ? (
+          <PrivyFooterAuthButton />
+        ) : (
+          <Button asChild variant="ghost">
+            <Link href="/sign-in">Sign in with Privy</Link>
+          </Button>
+        )}
       </div>
 
       <SandboxNote>
@@ -212,6 +229,98 @@ export function WalletScreen() {
         any time.
       </SandboxNote>
     </div>
+  );
+}
+
+function PrivyWalletSubtitle({
+  fallback,
+  chainName,
+}: {
+  fallback: string;
+  chainName: string;
+}) {
+  const { ready, authenticated, user } = usePrivy();
+  if (!ready || !authenticated || !user) {
+    return <p className="mt-1 text-[12px] text-white/70">{fallback}</p>;
+  }
+  const email = user.email?.address;
+  return (
+    <p className="mt-1 text-[12px] text-white/70">
+      {email ? `${email} · ` : ''}{chainName} · embedded wallet
+    </p>
+  );
+}
+
+function PrivyCardAuthButton() {
+  const { ready, authenticated, logout } = usePrivy();
+  const { disconnect } = useDisconnect();
+  const { leaveSandbox } = useSession();
+  const [busy, setBusy] = useState(false);
+
+  if (!ready) return null;
+
+  if (authenticated) {
+    return (
+      <Button
+        variant="secondary"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await logout();
+            disconnect();
+            leaveSandbox();
+          } finally {
+            setBusy(false);
+          }
+        }}>
+        <LogOut className="size-3.5" aria-hidden />
+        {busy ? 'Signing out…' : 'Sign out'}
+      </Button>
+    );
+  }
+
+  return (
+    <Button asChild variant="secondary">
+      <Link href="/sign-in">Sign in with Privy</Link>
+    </Button>
+  );
+}
+
+function PrivyFooterAuthButton() {
+  const { ready, authenticated, logout } = usePrivy();
+  const { disconnect } = useDisconnect();
+  const { leaveSandbox } = useSession();
+  const [busy, setBusy] = useState(false);
+
+  if (!ready) return null;
+
+  if (authenticated) {
+    return (
+      <Button
+        variant="ghost"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await logout();
+            disconnect();
+            leaveSandbox();
+          } finally {
+            setBusy(false);
+          }
+        }}
+        className="text-ink-secondary hover:text-ink-primary">
+        <LogOut className="size-3.5" aria-hidden />
+        {busy ? 'Signing out…' : 'Sign out of Privy'}
+      </Button>
+    );
+  }
+
+  return (
+    <Button asChild variant="ghost">
+      <Link href="/sign-in">Sign in with Privy</Link>
+    </Button>
   );
 }
 

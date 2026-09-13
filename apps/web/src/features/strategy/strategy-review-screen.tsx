@@ -70,7 +70,7 @@ function ConcentratedStrategyReview() {
     <div className="mx-auto max-w-[560px] space-y-7">
       <header>
         <Link
-          href={{ pathname: '/strategies/new/configure', query: { ticker: company.ticker } }}
+          href={{ pathname: '/strategies/new/configure', query: { mechanism: 'concentrated', ticker: company.ticker } }}
           className="text-[12.5px] font-medium text-ink-tertiary transition-colors hover:text-ink-primary">
           ← Adjust
         </Link>
@@ -185,8 +185,8 @@ function ConcentratedStrategyReview() {
 function PeggedStrategyReview() {
   const params = useSearchParams();
   const router = useRouter();
-  const tokenA = stockRepresentation(params.get('tokenA') ?? 'dinari-nvda') ?? stockRepresentation('dinari-nvda')!;
-  const tokenB = stockRepresentation(params.get('tokenB') ?? 'xstock-nvda') ?? stockRepresentation('xstock-nvda')!;
+  const tokenA = stockRepresentation(params.get('tokenA') ?? 'xstock-nvda') ?? stockRepresentation('xstock-nvda')!;
+  const tokenB = stockRepresentation(params.get('tokenB') ?? 'ondo-nvda') ?? stockRepresentation('ondo-nvda')!;
   const amountA = numericParam(params.get('amountA'), 20);
   const amountB = numericParam(params.get('amountB'), 20);
   const feeBps = numericParam(params.get('feeBps'), 30);
@@ -321,7 +321,7 @@ function PeggedStrategyReview() {
 function ReviewToken({ stock, amount }: { stock: NonNullable<ReturnType<typeof stockRepresentation>>; amount: number }) {
   return (
     <div className="rounded-xl border border-stroke-hairline bg-fill-subtle p-4">
-      <div className="flex items-center gap-3"><TokenMark stock={stock} size="sm" /><span><span className="block text-[12px] font-semibold">{stock.symbol}</span><span className="text-[10.5px] text-ink-faint">{stock.issuer === 'dinari' ? 'Dinari' : 'xStock'}</span></span></div>
+      <div className="flex items-center gap-3"><TokenMark stock={stock} size="sm" /><span><span className="block text-[12px] font-semibold">{stock.symbol}</span><span className="text-[10.5px] text-ink-faint">{stock.issuer === 'ondo' ? 'Ondo' : 'xStock'}</span></span></div>
       <Num className="mt-4 block text-xl font-medium">{formatUsd(amount)}</Num>
       <Num className="mt-1 block text-[10.5px] text-ink-faint">multiplier {stock.multiplier.toFixed(4)}x</Num>
     </div>

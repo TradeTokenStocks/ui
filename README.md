@@ -1,6 +1,6 @@
 # TradeTokenStocks
 
-TradeTokenStocks is a sandbox portfolio experience for understanding one company position across two custody models: onchain holdings that can be allocated to a strategy, and brokerage holdings that are visible but read-only.
+TradeTokenStocks is a portfolio and Aqua strategy prototype for understanding one company position across two custody models: onchain holdings that can be allocated to a strategy, and brokerage holdings that are visible but read-only.
 
 The repository is a Bun/Turborepo monorepo with two clients:
 
@@ -10,7 +10,7 @@ The repository is a Bun/Turborepo monorepo with two clients:
 - `packages/design-tokens` — shared semantic colour, spacing, typography, and motion values
 - `packages/typescript-config` — strict TypeScript defaults for shared packages
 
-All balances, positions, events, and transactions shown by default are deterministic sandbox fixtures. An optional SnapTrade handoff can connect a real brokerage in read-only mode; live holdings are not yet rendered in the portfolio.
+The default experience remains deterministic while deployment configuration is pending. An optional SnapTrade handoff supplies read-only brokerage holdings. Once the deployment manifest is marked live, both clients use the same domain flows for token acquisition, Aqua ship/dock, strategy balances, guarded quotes/swaps, multiplier demonstrations, and wallet portfolio aggregation.
 
 ## Requirements
 
@@ -72,4 +72,4 @@ Run `bun run tokens` after changing `packages/design-tokens`. The generated web 
 
 ## Status
 
-The repository is an active ETHOnline 2026 prototype. Privy authentication and the read-only SnapTrade portal handoff are implemented; brokerage synchronization into the portfolio, settlement, and strategy execution remain fixture-backed.
+The repository is an active ETHOnline 2026 prototype. Privy authentication, SnapTrade portfolio synchronization, and the live Aqua lifecycle are implemented. Sepolia Aqua, SwapVM, WETH, and USDC infrastructure is verified; live mode remains gated only on the Dinari/xStock deployment details and end-to-end funded-wallet rehearsal.

@@ -49,3 +49,5 @@ apps/mobile/ios/
 apps/mobile/android/
 .vercel
 .env*
+
+docs/

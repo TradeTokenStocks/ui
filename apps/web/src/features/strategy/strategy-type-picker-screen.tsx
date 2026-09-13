@@ -27,33 +27,56 @@ export function StrategyTypePickerScreen({ ticker }: { ticker: string }) {
       </header>
 
       <div className="space-y-3">
-        <Link href={{ pathname: '/strategies/new/configure', query: { ticker: company.ticker } }} className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cobalt/70">
-          <Panel className="p-5 transition-colors group-hover:border-cobalt/30 group-hover:bg-cobalt/[0.045]">
+        <TypeLink
+          href={{ pathname: '/strategies/new/configure', query: { mechanism: 'concentrated', ticker: company.ticker } }}
+          title="Concentrated liquidity"
+          description="Set a stock/USDC price band and earn fees while price stays inside it."
+        />
+
+        {peggedEligible ? (
+          <TypeLink
+            href={{ pathname: '/strategies/new/configure', query: { mechanism: 'pegged', ticker: company.ticker } }}
+            title="Same-stock pegged"
+            description="Provide liquidity between two tokenized representations of the same company, near their calculated parity."
+            note={`${company.ticker} has Ondo and xStock representations ready`}
+          />
+        ) : (
+          <Panel aria-disabled className="p-5 opacity-55">
             <div className="flex items-center justify-between gap-3">
-              <Display as="h2" className="text-[15px]">Concentrated liquidity</Display>
-              <span aria-hidden className="text-ink-tertiary">›</span>
+              <Display as="h2" className="text-[15px]">Same-stock pegged</Display>
+              <Chip>Unavailable</Chip>
             </div>
-            <p className="mt-2 text-[12.5px] leading-relaxed text-ink-tertiary">
-              Set a stock/USDC price band and earn fees while price stays inside it.
+            <p className="mt-2 text-[12px] text-ink-quaternary">
+              Needs a second tokenized {company.ticker} representation.
             </p>
           </Panel>
-        </Link>
-
-        <DisabledType title="Same-stock pegged" note={peggedEligible ? 'Eligible · builder coming soon' : `Needs another tokenized ${company.ticker} representation`} />
-        <DisabledType title="Full range" note="Not planned for stock/USDC pairs" />
+        )}
       </div>
     </div>
   );
 }
 
-function DisabledType({ title, note }: { title: string; note: string }) {
+function TypeLink({
+  href,
+  title,
+  description,
+  note,
+}: {
+  href: React.ComponentProps<typeof Link>['href'];
+  title: string;
+  description: string;
+  note?: string;
+}) {
   return (
-    <Panel aria-disabled className="p-5 opacity-55">
-      <div className="flex items-center justify-between gap-3">
-        <Display as="h2" className="text-[15px]">{title}</Display>
-        <Chip>Coming soon</Chip>
-      </div>
-      <p className="mt-2 text-[12px] text-ink-quaternary">{note}</p>
-    </Panel>
+    <Link href={href} className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cobalt/70">
+      <Panel className="p-5 transition-colors group-hover:border-cobalt/30 group-hover:bg-cobalt/[0.045]">
+        <div className="flex items-center justify-between gap-3">
+          <Display as="h2" className="text-[15px]">{title}</Display>
+          <span aria-hidden className="text-ink-tertiary">›</span>
+        </div>
+        <p className="mt-2 text-[12.5px] leading-relaxed text-ink-tertiary">{description}</p>
+        {note ? <Num className="mt-2 block text-[11px] text-ink-quaternary">{note}</Num> : null}
+      </Panel>
+    </Link>
   );
 }

@@ -7,9 +7,7 @@ import type {
   LiveHackathonDeployment,
   LiveSigner,
 } from "@tradetoken/domain";
-import { createWalletClient, custom, type Address } from "viem";
-
-import { robinHoodTestnet } from "@/lib/chains";
+import { createWalletClient, custom, defineChain, type Address } from "viem";
 
 export async function switchOrAddDeploymentChain(
   provider: PrivyEmbeddedWalletProvider,
@@ -59,13 +57,26 @@ export async function connectLiveSigner(
   wallet: EmbeddedWallet | undefined,
   deployment: LiveHackathonDeployment,
 ): Promise<LiveSigner> {
-  if (!wallet) throw new Error("Sign in and create your embedded wallet first.");
+  if (!wallet)
+    throw new Error("Sign in and create your embedded wallet first.");
   const account = wallet.address as Address;
   const provider = await wallet.getProvider();
   await switchOrAddDeploymentChain(provider, deployment);
   const walletClient = createWalletClient({
     account,
-    chain: robinHoodTestnet,
+    chain: defineChain({
+      id: deployment.chainId,
+      name: deployment.chainName,
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      rpcUrls: { default: { http: [deployment.rpcUrl] } },
+      blockExplorers: {
+        default: {
+          name: `${deployment.chainName} explorer`,
+          url: deployment.explorerUrl,
+        },
+      },
+      testnet: true,
+    }),
     transport: custom(provider),
   });
   return {

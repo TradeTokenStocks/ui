@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { Account, AccountPosition } from 'snaptrade-typescript-sdk';
+import { SnaptradeError, type Account, type AccountPosition } from 'snaptrade-typescript-sdk';
 import type {
   BrokeragePosition,
   SnapTradeHoldingsFailure,
@@ -174,6 +174,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     logUpstreamFailure('listUserAccounts / getAllAccountPositions', error);
+    if (error instanceof SnaptradeError && (error.status === 401 || error.status === 403)) {
+      return failure(401, 'CREDENTIAL_INVALID', 'Brokerage access must be connected again.');
+    }
     return failure(502, 'UPSTREAM_ERROR', 'SnapTrade could not return holdings. Try again.');
   }
 }

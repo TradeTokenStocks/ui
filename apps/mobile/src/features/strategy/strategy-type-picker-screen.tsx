@@ -28,17 +28,12 @@ const OPTIONS: MechanismOption[] = [
     description:
       'Provides liquidity between two tokenized representations of the same company, near their calculated parity.',
   },
-  {
-    mechanism: 'xyk',
-    title: 'Full range',
-    description: "Not used for stock/USDC pairs — a stock and USDC don't hold near a fixed ratio.",
-  },
 ];
 
 /**
  * Step 2 of opening a strategy: which Aqua mechanism, for the company chosen
  * in step 1. Same-stock pegged opens the Aqua position builder whenever the
- * company has both Dinari and xStock representations.
+ * company has both Ondo and xStock representations.
  */
 export function StrategyTypePickerScreen() {
   const insets = useSafeAreaInsets();
@@ -49,7 +44,6 @@ export function StrategyTypePickerScreen() {
   const executableUsd = company ? executableTotalUsd(company) : 0;
 
   const select = (mechanism: StrategyMechanism) => {
-    if (mechanism === 'xyk') return;
     router.push({ pathname: '/strategy/new', params: { ticker, mechanism } });
   };
 
@@ -73,7 +67,7 @@ export function StrategyTypePickerScreen() {
             const eligibleNote =
               option.mechanism === 'pegged'
                 ? peggedEligible
-                  ? `${ticker} has Dinari and xStock representations ready`
+                  ? `${ticker} has Ondo and xStock representations ready`
                   : `Needs a second tokenized representation of ${ticker}`
                 : null;
 
@@ -96,7 +90,7 @@ export function StrategyTypePickerScreen() {
                   {!enabled && (
                     <View style={styles.comingSoon}>
                       <Body size={10.5} weight="semibold" color={ink.quaternary}>
-                        Coming soon
+                        Unavailable
                       </Body>
                     </View>
                   )}

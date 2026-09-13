@@ -6,14 +6,22 @@ import {
 import {
   Address,
   AquaProgramBuilder,
-  HexString,
+  AquaXYCAmmStrategy,
   MakerTraits,
-  Order,
-  SwapVMContract,
+  SwapVmProgram,
   TakerTraits,
   instructions,
 } from "@1inch/swap-vm-sdk";
+import {
+  concatHex,
+  decodeAbiParameters,
+  encodeAbiParameters,
+  encodeFunctionData,
+  sliceHex,
+  type Hex,
+} from "viem";
 
+import { swapVmAbi } from "./contracts";
 import type {
   ContractAddress,
   DeployedStockToken,
@@ -43,12 +51,34 @@ export type LivePeggedPositionInput = {
 };
 
 export type LivePeggedPosition = {
-  order: Order;
+  order: DeployedSwapVmOrder;
   encodedOrder: `0x${string}`;
   strategyHash: `0x${string}`;
   program: `0x${string}`;
   ship: EncodedCall;
   guards: readonly [EncodedMultiplierBounds, EncodedMultiplierBounds];
+};
+
+export type LiveConcentratedPositionInput = {
+  deployment: Pick<LiveHackathonDeployment, "contracts">;
+  maker: ContractAddress;
+  tokenA: Pick<DeployedStockToken, "address" | "decimals">;
+  tokenB: Pick<DeployedStockToken, "address" | "decimals">;
+  reserveA: bigint;
+  reserveB: bigint;
+  /** Raw P = token with greater address / token with lower address, scaled 1e18. */
+  rawPriceMin: bigint;
+  rawPriceMax: bigint;
+  /** Optional uniqueness for repeatable test/demo positions. */
+  salt?: bigint;
+};
+
+export type LiveConcentratedPosition = {
+  order: DeployedSwapVmOrder;
+  encodedOrder: `0x${string}`;
+  strategyHash: `0x${string}`;
+  program: `0x${string}`;
+  ship: EncodedCall;
 };
 
 export type EncodedMultiplierBounds = {
@@ -60,6 +90,113 @@ const ZERO = BigInt(0);
 const TEN = BigInt(10);
 const BPS = BigInt(10_000);
 const USD_SCALE = BigInt(1_000_000);
+const TOKEN_PAIR_BYTES = 40;
+const ORDER_DATA_OFFSET_SHIFT = BigInt(160);
+const TAKER_DIRECTION_FLAG = BigInt(0x80);
+
+const deployedSwapVmOrderAbi = {
+  type: "tuple",
+  components: [
+    { name: "maker", type: "address" },
+    { name: "traits", type: "uint256" },
+    { name: "data", type: "bytes" },
+  ],
+} as const;
+
+type BuiltDeployedSwapVmOrder = {
+  maker: ContractAddress;
+  traits: bigint;
+  data: Hex;
+};
+
+/** Order shape used by the TradeTokenStocks fork deployed on Sepolia. */
+export type DeployedSwapVmOrder = {
+  maker: ContractAddress;
+  traits: bigint;
+  tokenA: ContractAddress;
+  tokenB: ContractAddress;
+  program: SwapVmProgram;
+  build(): BuiltDeployedSwapVmOrder;
+  encode(): AquaHexString;
+};
+
+function orderedPair(
+  first: ContractAddress,
+  second: ContractAddress,
+): readonly [ContractAddress, ContractAddress] {
+  if (first.toLowerCase() === second.toLowerCase()) {
+    throw new Error("SwapVM orders require two distinct tokens");
+  }
+  return BigInt(first) < BigInt(second) ? [first, second] : [second, first];
+}
+
+function createDeployedSwapVmOrder({
+  maker,
+  tokenA,
+  tokenB,
+  program,
+  traits,
+}: {
+  maker: ContractAddress;
+  tokenA: ContractAddress;
+  tokenB: ContractAddress;
+  program: SwapVmProgram;
+  traits?: bigint;
+}): DeployedSwapVmOrder {
+  const [lowerToken, higherToken] = orderedPair(tokenA, tokenB);
+  // The fork prepends tokenA/tokenB to Order.data. With no hooks, all four
+  // hook boundaries point at byte 40, where the VM program begins.
+  const dataOffsets =
+    (BigInt(40) |
+      (BigInt(40) << BigInt(16)) |
+      (BigInt(40) << BigInt(32)) |
+      (BigInt(40) << BigInt(48))) <<
+    ORDER_DATA_OFFSET_SHIFT;
+  const encodedTraits =
+    traits ??
+    MakerTraits.default().encode(new Address(maker)).traits | dataOffsets;
+  const built: BuiltDeployedSwapVmOrder = {
+    maker,
+    traits: encodedTraits,
+    data: concatHex([lowerToken, higherToken, program.toString() as Hex]),
+  };
+
+  return {
+    maker,
+    traits: encodedTraits,
+    tokenA: lowerToken,
+    tokenB: higherToken,
+    program,
+    build: () => built,
+    encode: () =>
+      new AquaHexString(encodeAbiParameters([deployedSwapVmOrderAbi], [built])),
+  };
+}
+
+function forkTakerTraits(
+  order: DeployedSwapVmOrder,
+  tokenIn: ContractAddress,
+  tokenOut: ContractAddress,
+): Hex {
+  const input = tokenIn.toLowerCase();
+  const output = tokenOut.toLowerCase();
+  const isAToB = input === order.tokenA.toLowerCase();
+  const validPair = isAToB
+    ? output === order.tokenB.toLowerCase()
+    : input === order.tokenB.toLowerCase() &&
+      output === order.tokenA.toLowerCase();
+  if (!validPair) throw new Error("Swap tokens do not match the position pair");
+
+  const encoded = TakerTraits.default().encode().toString() as Hex;
+  // The fork added isAToB at bit 7 of the 22-byte taker-traits header. Keep
+  // the SDK's remaining flags and slices intact while setting the direction.
+  const headerEnd = 2 + 22 * 2;
+  const header = BigInt(`0x${encoded.slice(2, headerEnd)}`);
+  const directedHeader = (header | (isAToB ? TAKER_DIRECTION_FLAG : ZERO))
+    .toString(16)
+    .padStart(44, "0");
+  return `0x${directedHeader}${encoded.slice(headerEnd)}`;
+}
 
 function checkedBps(
   value: number,
@@ -212,9 +349,10 @@ export function buildLivePeggedPosition({
     .peggedSwapGrowPriceRange2D(curve)
     .salt({ salt })
     .build();
-  const order = Order.new({
-    maker: new Address(maker),
-    traits: MakerTraits.default(),
+  const order = createDeployedSwapVmOrder({
+    maker,
+    tokenA: tokenA.address,
+    tokenB: tokenB.address,
     program,
   });
   const encodedOrder = order.encode();
@@ -245,6 +383,61 @@ export function buildLivePeggedPosition({
   };
 }
 
+/** Build a standard concentrated XYC strategy for volatile pairs such as WETH/USDC. */
+export function buildLiveConcentratedPosition({
+  deployment,
+  maker,
+  tokenA,
+  tokenB,
+  reserveA,
+  reserveB,
+  rawPriceMin,
+  rawPriceMax,
+  salt,
+}: LiveConcentratedPositionInput): LiveConcentratedPosition {
+  if (tokenA.address === tokenB.address)
+    throw new Error("Concentrated positions require two distinct tokens");
+  if (reserveA <= ZERO || reserveB <= ZERO)
+    throw new RangeError("Both reserves must be greater than zero");
+  if (rawPriceMin <= ZERO || rawPriceMax <= rawPriceMin)
+    throw new RangeError("Raw price bounds must be positive and increasing");
+
+  const strategy = AquaXYCAmmStrategy.newConcentrate({
+    rawPriceMin,
+    rawPriceMax,
+  });
+  if (salt !== undefined) strategy.withSalt(salt);
+  const program = strategy.build();
+  const order = createDeployedSwapVmOrder({
+    maker,
+    tokenA: tokenA.address,
+    tokenB: tokenB.address,
+    program,
+  });
+  const encodedOrder = order.encode();
+  const aquaOrder = new AquaHexString(encodedOrder.toString());
+  const aqua = new AquaProtocolContract(
+    new AquaAddress(deployment.contracts.aqua),
+  );
+  const ship = aqua.ship({
+    app: new AquaAddress(deployment.contracts.aquaSwapVmRouter),
+    strategy: aquaOrder,
+    amountsAndTokens: [
+      { token: new AquaAddress(tokenA.address), amount: reserveA },
+      { token: new AquaAddress(tokenB.address), amount: reserveB },
+    ],
+  });
+
+  return {
+    order,
+    encodedOrder: encodedOrder.toString(),
+    strategyHash:
+      AquaProtocolContract.calculateStrategyHash(aquaOrder).toString(),
+    program: program.toString(),
+    ship: asCall(ship),
+  };
+}
+
 export function buildSwapCall({
   deployment,
   position,
@@ -252,28 +445,46 @@ export function buildSwapCall({
   tokenOut,
   amount,
 }: {
-  deployment: LiveHackathonDeployment;
+  deployment: Pick<LiveHackathonDeployment, "contracts">;
   position: Pick<LivePeggedPosition, "order">;
   tokenIn: ContractAddress;
   tokenOut: ContractAddress;
   amount: bigint;
 }): EncodedCall {
-  const router = new SwapVMContract(
-    new Address(deployment.contracts.aquaSwapVmRouter),
-  );
-  return asCall(
-    router.swap({
-      order: position.order,
-      tokenIn: new Address(tokenIn),
-      tokenOut: new Address(tokenOut),
-      amount,
-      takerTraits: TakerTraits.default(),
+  if (amount <= ZERO) throw new RangeError("Swap amount must be positive");
+  return {
+    to: deployment.contracts.aquaSwapVmRouter,
+    data: encodeFunctionData({
+      abi: swapVmAbi,
+      functionName: "swap",
+      args: [
+        position.order.build(),
+        amount,
+        forkTakerTraits(position.order, tokenIn, tokenOut),
+      ],
     }),
-  );
+    value: ZERO,
+  };
 }
 
-export function decodeLiveOrder(encodedOrder: `0x${string}`): Order {
-  return Order.decode(new HexString(encodedOrder));
+export function decodeLiveOrder(
+  encodedOrder: `0x${string}`,
+): DeployedSwapVmOrder {
+  const [built] = decodeAbiParameters([deployedSwapVmOrderAbi], encodedOrder);
+  const programOffset = Number((built.traits >> BigInt(208)) & BigInt(0xffff));
+  if (
+    programOffset < TOKEN_PAIR_BYTES ||
+    built.data.length < 2 + 2 * programOffset
+  ) {
+    throw new Error("Invalid deployed SwapVM order data");
+  }
+  return createDeployedSwapVmOrder({
+    maker: built.maker,
+    tokenA: sliceHex(built.data, 0, 20),
+    tokenB: sliceHex(built.data, 20, 40),
+    program: new SwapVmProgram(sliceHex(built.data, programOffset)),
+    traits: built.traits,
+  });
 }
 
 export function buildDockCall({
@@ -281,7 +492,7 @@ export function buildDockCall({
   strategyHash,
   tokens,
 }: {
-  deployment: LiveHackathonDeployment;
+  deployment: Pick<LiveHackathonDeployment, "contracts">;
   strategyHash: `0x${string}`;
   tokens: readonly ContractAddress[];
 }): EncodedCall {
@@ -305,24 +516,26 @@ export function buildQuoteCall({
   tokenOut,
   amount,
 }: {
-  deployment: LiveHackathonDeployment;
+  deployment: Pick<LiveHackathonDeployment, "contracts">;
   position: Pick<LivePeggedPosition, "order">;
   tokenIn: ContractAddress;
   tokenOut: ContractAddress;
   amount: bigint;
 }): EncodedCall {
-  const router = new SwapVMContract(
-    new Address(deployment.contracts.aquaSwapVmRouter),
-  );
-  return asCall(
-    router.quote({
-      order: position.order,
-      tokenIn: new Address(tokenIn),
-      tokenOut: new Address(tokenOut),
-      amount,
-      takerTraits: TakerTraits.default(),
+  if (amount <= ZERO) throw new RangeError("Quote amount must be positive");
+  return {
+    to: deployment.contracts.aquaSwapVmRouter,
+    data: encodeFunctionData({
+      abi: swapVmAbi,
+      functionName: "quote",
+      args: [
+        position.order.build(),
+        amount,
+        forkTakerTraits(position.order, tokenIn, tokenOut),
+      ],
     }),
-  );
+    value: ZERO,
+  };
 }
 
 export const contractUnits = {

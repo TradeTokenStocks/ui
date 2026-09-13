@@ -61,6 +61,7 @@ export const strategies: readonly StrategySummary[] = [
  */
 export const nvdaSplit = {
   id: 'nvda-split',
+  ticker: 'NVDA',
   title: 'Nvidia 10-for-1',
   effective: '11 Sep',
   multiplierBefore: 1,

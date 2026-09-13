@@ -1,4 +1,4 @@
-import { ABI } from "@1inch/aqua-sdk";
+import { ABI as AquaSdkAbi } from "@1inch/aqua-sdk";
 import { decodeErrorResult } from "viem";
 
 import type {
@@ -8,6 +8,20 @@ import type {
 } from "./deployment";
 
 export const stockTokenAbi = [
+  {
+    type: "function",
+    name: "symbol",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "string" }],
+  },
+  {
+    type: "function",
+    name: "decimals",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
+  },
   {
     type: "function",
     name: "balanceOf",
@@ -97,16 +111,76 @@ export const stockTokenAbi = [
     inputs: [{ name: "nextMultiplier", type: "uint256" }],
     outputs: [],
   },
+  {
+    type: "function",
+    name: "updateMultiplier",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "newMultiplier", type: "uint256" }],
+    outputs: [],
+  },
 ] as const;
 
-export const aquaAbi = ABI.AQUA_ABI;
+export const aquaAbi = AquaSdkAbi.AQUA_ABI;
+
+const swapVmOrderComponents = [
+  { name: "maker", type: "address" },
+  { name: "traits", type: "uint256" },
+  { name: "data", type: "bytes" },
+] as const;
+
+/** ABI of the deployed TradeTokenStocks fork, whose token pair lives in Order.data. */
+export const swapVmAbi = [
+  {
+    type: "function",
+    name: "AQUA",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "WETH",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "quote",
+    stateMutability: "view",
+    inputs: [
+      { name: "order", type: "tuple", components: swapVmOrderComponents },
+      { name: "amount", type: "uint256" },
+      { name: "takerTraitsAndData", type: "bytes" },
+    ],
+    outputs: [
+      { name: "amountIn", type: "uint256" },
+      { name: "amountOut", type: "uint256" },
+      { name: "orderHash", type: "bytes32" },
+    ],
+  },
+  {
+    type: "function",
+    name: "swap",
+    stateMutability: "payable",
+    inputs: [
+      { name: "order", type: "tuple", components: swapVmOrderComponents },
+      { name: "amount", type: "uint256" },
+      { name: "takerTraitsAndData", type: "bytes" },
+    ],
+    outputs: [
+      { name: "amountIn", type: "uint256" },
+      { name: "amountOut", type: "uint256" },
+      { name: "orderHash", type: "bytes32" },
+    ],
+  },
+] as const;
 
 export const multiplierGuardErrorAbi = [
   {
     type: "error",
     name: "CurrentMultiplierIsNotInRange",
     inputs: [
-      { name: "taker", type: "address" },
       { name: "token", type: "address" },
       { name: "currentMultiplier", type: "uint256" },
       { name: "minMultiplier", type: "uint256" },
@@ -130,7 +204,7 @@ function decodedGuardFailure(value: unknown): MultiplierGuardFailure | null {
     "args" in value &&
     Array.isArray(value.args)
   ) {
-    const [, token, currentMultiplier, minMultiplier, maxMultiplier] = value.args;
+    const [token, currentMultiplier, minMultiplier, maxMultiplier] = value.args;
     if (
       typeof token === "string" &&
       typeof currentMultiplier === "bigint" &&
@@ -149,7 +223,9 @@ function decodedGuardFailure(value: unknown): MultiplierGuardFailure | null {
 }
 
 /** Extract only the fork's multiplier circuit-breaker error from a viem error chain. */
-export function decodeMultiplierGuardFailure(error: unknown): MultiplierGuardFailure | null {
+export function decodeMultiplierGuardFailure(
+  error: unknown,
+): MultiplierGuardFailure | null {
   const seen = new Set<unknown>();
   let current: unknown = error;
 
@@ -164,7 +240,10 @@ export function decodeMultiplierGuardFailure(error: unknown): MultiplierGuardFai
       if (decoded) return decoded;
       if (typeof data === "string" && /^0x[0-9a-f]+$/i.test(data)) {
         try {
-          const result = decodeErrorResult({ abi: multiplierGuardErrorAbi, data: data as `0x${string}` });
+          const result = decodeErrorResult({
+            abi: multiplierGuardErrorAbi,
+            data: data as `0x${string}`,
+          });
           const failure = decodedGuardFailure(result);
           if (failure) return failure;
         } catch {
@@ -186,7 +265,8 @@ export type ContractFunctionCall = {
     | "faucetAmount"
     | "faucet"
     | "setMultiplier"
-    | "setUiMultiplier";
+    | "setUiMultiplier"
+    | "updateMultiplier";
   args: readonly unknown[];
 };
 

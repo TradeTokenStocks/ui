@@ -39,7 +39,7 @@ export function SnapTradePortalScreen() {
       setFailed(true);
       return;
     }
-    router.replace({ pathname: '/connections', params: { scenario } });
+    router.dismissTo({ pathname: '/connections', params: { scenario } });
   };
 
   const connectLive = async () => {
@@ -61,7 +61,7 @@ export function SnapTradePortalScreen() {
         // Returning from the portal is the one moment the shared state is
         // certainly stale: a brokerage was linked while the app sat still.
         refetch();
-        router.replace('/connections');
+        router.dismissTo('/connections');
       }
     } catch (caught) {
       // A portal handoff crosses Privy, this app's API and an external browser.
@@ -154,12 +154,11 @@ export function SnapTradePortalScreen() {
             <Body size={11.5} color={ink.tertiary} style={styles.pickerMeta}>Sandbox institution · no credentials requested</Body>
           </View>
 
+          <View style={styles.demoAction}>
+            <PrimaryButton label={`Use ${selected.title} demo`} onPress={connect} />
+            <Body size={10.5} color={ink.faint} style={styles.legal}>Loads local demo data · no institution login</Body>
+          </View>
         </ScrollView>
-
-        <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 14) }]}>
-          <PrimaryButton label={`Connect · ${selected.title}`} onPress={connect} />
-          <Body size={10.5} color={ink.faint} style={styles.legal}>Read-only access · production portal hosted by SnapTrade</Body>
-        </View>
       </View>
     </View>
   );
@@ -170,8 +169,8 @@ function Label({ children }: { children: string }) { return <Body size={10.5} we
 const styles = StyleSheet.create({
   host: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' }, scrim: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.72)' }, sheet: { flex: 1, marginTop: 44, backgroundColor: palette.bg, borderTopLeftRadius: 22, borderTopRightRadius: 22, overflow: 'hidden', ...shadow.card },
   header: { height: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.gutter, borderBottomWidth: 1, borderBottomColor: stroke.hairline }, brandMark: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#8fefcf', marginRight: 9 }, flex: { flex: 1 }, close: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: fill.muted },
-  content: { paddingHorizontal: space.gutter, paddingTop: 24, paddingBottom: 150 }, intro: { lineHeight: 20, marginTop: 10 }, sandboxCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 20, padding: 14, borderRadius: radius.md, backgroundColor: 'rgba(224,163,60,0.08)', borderWidth: 1, borderColor: 'rgba(224,163,60,0.2)' }, sandboxDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.amber }, rowMeta: { marginTop: 4, lineHeight: 16 },
+  content: { paddingHorizontal: space.gutter, paddingTop: 24, paddingBottom: 40 }, intro: { lineHeight: 20, marginTop: 10 }, sandboxCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 20, padding: 14, borderRadius: radius.md, backgroundColor: 'rgba(224,163,60,0.08)', borderWidth: 1, borderColor: 'rgba(224,163,60,0.2)' }, sandboxDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.amber }, rowMeta: { marginTop: 4, lineHeight: 16 },
   liveCard: { gap: 12, marginTop: 20, padding: 14, borderRadius: radius.md, backgroundColor: 'rgba(90,213,208,0.05)', borderWidth: 1, borderColor: 'rgba(90,213,208,0.2)' },
   label: { marginTop: 25, marginBottom: 9, marginLeft: 2 }, pickerCard: { borderRadius: radius.lg, borderWidth: 1, borderColor: stroke.hairline, backgroundColor: palette.surface, padding: 12 }, pickerMeta: { marginTop: 4, marginLeft: 4 }, error: { marginTop: 18, padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: 'rgba(224,163,60,0.2)', backgroundColor: 'rgba(224,163,60,0.07)' },
-  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: space.gutter, paddingTop: 14, backgroundColor: 'rgba(10,11,13,0.97)', borderTopWidth: 1, borderTopColor: stroke.hairline }, legal: { textAlign: 'center', marginTop: 10 },
+  demoAction: { marginTop: 24 }, legal: { textAlign: 'center', marginTop: 10 },
 });

@@ -94,6 +94,38 @@ export function rescaleBand(
   };
 }
 
+/** A strategy's price figures after its multiplier ratio moves: band and spot divide by it. */
+export function rescaleStrategyPrices<T extends { lowerUsd: number; upperUsd: number; spotUsd: number }>(
+  strategy: T,
+  multiplier: number,
+): T {
+  return { ...strategy, ...rescaleBand(strategy, multiplier), spotUsd: strategy.spotUsd / multiplier };
+}
+
+/**
+ * What a multiplier-moving corporate action does to an open band: the price
+ * bounds divide by the multiplier ratio and the guard re-centres on the new
+ * multiplier. Until the band is rescaled, the old guard halts every fill.
+ */
+export function corporateActionRescale({
+  band,
+  multiplierBefore,
+  multiplierAfter,
+  guardTolerancePct,
+}: {
+  band: { lowerUsd: number; upperUsd: number };
+  multiplierBefore: number;
+  multiplierAfter: number;
+  guardTolerancePct: number;
+}) {
+  return {
+    bandBefore: band,
+    bandAfter: rescaleBand(band, multiplierAfter / multiplierBefore),
+    guardBefore: calculateMultiplierBounds(multiplierBefore, guardTolerancePct),
+    guardAfter: calculateMultiplierBounds(multiplierAfter, guardTolerancePct),
+  };
+}
+
 /** Share-equivalents after a multiplier moves. Token count is unchanged. */
 export function rescaleShareEquivalents(shareEquivalents: number, multiplier: number) {
   return shareEquivalents * multiplier;

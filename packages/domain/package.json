@@ -10,6 +10,9 @@
   },
   "scripts": {
     "deployment:check": "bun run scripts/check-deployment.ts",
+    "infrastructure:check": "bun run scripts/check-deployment.ts --infrastructure-only",
+    "position:check": "bun run scripts/check-position-registration.ts",
+    "stock-position:check": "bun run scripts/check-stock-position.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
