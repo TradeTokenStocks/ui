@@ -33,6 +33,8 @@ export type LiveStrategyStage =
 const messageFrom = (error: unknown) =>
   transactionErrorMessage(error, "The transaction failed.");
 
+const LIVE_POSITION_POLL_MS = 4_000;
+
 export function useLiveStrategy(record: LiveStrategyRecord) {
   const { wallets } = useEmbeddedEthereumWallet();
   const wallet = wallets[0];
@@ -49,17 +51,30 @@ export function useLiveStrategy(record: LiveStrategyRecord) {
 
   useEffect(() => {
     if (hackathonDeployment.status !== "live") return;
+    const deployment = hackathonDeployment;
     let cancelled = false;
-    void readLivePosition(hackathonDeployment, record)
-      .then((next) => {
+    let reading = false;
+
+    const readPosition = async () => {
+      if (reading) return;
+      reading = true;
+      try {
+        const next = await readLivePosition(deployment, record);
         if (!cancelled) setPosition(next);
-      })
-      .catch((cause) => {
+      } catch (cause) {
         if (!cancelled)
           setError(`Could not read Aqua balances. ${messageFrom(cause)}`);
-      });
+      } finally {
+        reading = false;
+      }
+    };
+
+    void readPosition();
+    const interval = setInterval(() => void readPosition(), LIVE_POSITION_POLL_MS);
+
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, [record]);
 
