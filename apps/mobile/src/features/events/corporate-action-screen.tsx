@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DitherField } from '@/components/dither-field';
@@ -12,6 +12,10 @@ export function CorporateActionScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [rescaled, setRescaled] = useState(false);
+  const haltedCopy =
+  'Order halted onchain by Swap-VM opcode 24. NVDA multiplier jumped from 1.00x to 10.00x, exceeding your 0.95x — 1.05x guard. Rescaling updates your price band to $16.06 — $19.62 and arms a new 9.50x — 10.50x guard.';
+const rescaledCopy =
+  'Band rescaled to $16.06 — $19.62. Multiplier guard updated to 9.50x — 10.50x (±5%). Safe trading resumed.';
 
   return (
     <View style={styles.root}>
@@ -65,17 +69,23 @@ export function CorporateActionScreen() {
               after="10.0000"
               accentAfter
             />
+            <ChangeRow label='Multiplier guard' before='0.95x — 1.05x' after='9.50x — 10.50x' accentAfter={rescaled}/>
             <ChangeRow label="Your exposure" before="236.4 sh" after="2,364 sh" />
           </View>
 
           <View style={styles.affected}>
+            <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8}}>
             <Body size={13} weight="semibold">
               {rescaled ? 'Open strategy updated' : 'One open strategy is affected'}
             </Body>
+            <View style={rescaled ? styles.onchainChip: styles.reviewChip}>
+              <Body size={11.5} weight='semibold' color={rescaled ? palette.cobaltText: palette.amber}>{rescaled? 'Guard active · 10.00x' : 'Halted onchain by Swap-VM'}</Body>
+            </View>
+            </View>
             <Num size={12.5} color={ink.secondary} style={styles.affectedCopy}>
               {rescaled
-                ? 'Band rescaled to $16.06 — $19.62. Width and deposited value are unchanged.'
-                : 'Your band sits at $160.56 — $196.24. After the split it needs to be $16.06 — $19.62, or it falls out of band.'}
+                ? rescaledCopy
+                : haltedCopy}
             </Num>
             <View style={styles.actions}>
               <Pressable

@@ -1,4 +1,4 @@
-import type { CompanyDetail, DriftRisk, Representation, StrategyMechanism, StrategySummary } from './types';
+import type { CompanyDetail, DriftRisk, MultiplierBounds, Representation, StrategyMechanism, StrategySummary } from './types';
 
 /**
  * Strategy and exposure arithmetic.
@@ -177,4 +177,21 @@ export function resolveStrategy(
   const first = strategies[0];
   if (!first) throw new Error('resolveStrategy: called with an empty strategies list');
   return first;
+}
+
+export function calculateMultiplierBounds(currentMultiplier: number = 1.0, tolerancePct: number = 5): MultiplierBounds {
+  const min = currentMultiplier * (1 - tolerancePct / 100);
+  const max = currentMultiplier * (1 + tolerancePct / 100);
+
+  const minWei = BigInt(Math.round(min * 1_000_000)) * (BigInt(10) ** BigInt(12));
+  const maxWei = BigInt(Math.round(max * 1_000_000)) * (BigInt(10) ** BigInt(12));
+
+
+  return {
+    current: currentMultiplier,
+    min,
+    max,
+    minWei,
+    maxWei
+  };
 }

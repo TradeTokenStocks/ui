@@ -87,6 +87,7 @@ export type CompanyDetail = {
    */
   shareEquivalents: number;
   representations: Representation[];
+  multiplier?: number;
 };
 
 /** How wide a band is allowed to drift before it stops earning. */
@@ -125,4 +126,12 @@ export type StrategySummary = {
   gainVsDepositPct: number;
   feeTierPct: number;
   networkFeeUsd: number;
+};
+
+export type MultiplierBounds = {
+  current: number;
+  min: number;
+  max: number;
+  minWei: bigint;
+  maxWei: bigint;
 };

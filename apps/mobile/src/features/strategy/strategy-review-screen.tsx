@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Body, Display, Num } from '@/components/ui/text';
-import { b20Symbol, bandMarket, formatNumber, formatUsd, projectBand, resolveCompany } from '@tradetoken/domain';
-import { companyDetails } from '@tradetoken/domain/fixtures';
-import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
 import { goBackOrHome } from '@/navigation/go-back';
+import { fill, ink, palette, radius, shadow, space, stroke } from '@/theme/tokens';
+import { b20Symbol, bandMarket, calculateMultiplierBounds, formatNumber, formatUsd, projectBand, resolveCompany } from '@tradetoken/domain';
+import { companyDetails } from '@tradetoken/domain/fixtures';
 
 const HOLD_DURATION = 1400;
 const HOLD_TICK_MS = 16;
@@ -33,6 +33,7 @@ export function StrategyReviewScreen() {
     bandPct: band,
   });
   const market = bandMarket(company.ticker);
+  const multiplierBounds = calculateMultiplierBounds(company.multiplier ?? 1.0 , 5);
 
   const [hold, setHold] = useState(0);
   const [complete, setComplete] = useState(false);
@@ -146,6 +147,8 @@ export function StrategyReviewScreen() {
         </View>
 
         <View style={styles.facts}>
+          <Fact label='Multiplier guard' value={`${multiplierBounds.min.toFixed(2)}x — ${multiplierBounds.max.toFixed(2)}x`}/>
+          <Fact label='Circuit breaker' value='Auto-halt (±5%)'/>
           <Fact label="Aqua fee tier" value="0.30%" />
           <Fact label="Network fee" value="$0.04" />
           <Fact label="You can exit" value="Any time" />

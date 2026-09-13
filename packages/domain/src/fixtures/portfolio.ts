@@ -74,6 +74,7 @@ export const companyDetails: Record<string, CompanyDetail> = {
     changePct: 2.4,
     totalUsd: 42180.1,
     shareEquivalents: 236.4,
+    multiplier: 1.0,
     representations: [
       {
         id: 'nvda-brokerage',
@@ -111,6 +112,7 @@ export const companyDetails: Record<string, CompanyDetail> = {
     changePct: -0.3,
     totalUsd: 31905,
     shareEquivalents: 137.4,
+    multiplier: 1.0026,
     representations: [
       {
         id: 'aapl-brokerage',
@@ -139,6 +141,7 @@ export const companyDetails: Record<string, CompanyDetail> = {
     changePct: 4.1,
     totalUsd: 19640,
     shareEquivalents: 47.6,
+    multiplier: 1.0,
     representations: [
       {
         id: 'tsla-brokerage',
