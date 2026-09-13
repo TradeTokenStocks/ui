@@ -1,20 +1,26 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { usePrivy } from '@privy-io/react-auth';
 import {
   Activity,
   CalendarClock,
   Cable,
   LayoutGrid,
+  LogOut,
   ShieldCheck,
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
 
 import { Chip, PulseDot } from '@/components/primitives';
+import { Button } from '@/components/ui/button';
+import { isPrivyConfigured } from '@/lib/privy';
 import { useSession } from '@/lib/session';
 import { cn } from '@/lib/utils';
+import { useDisconnect } from 'wagmi';
 
 /**
  * The four places a person actually goes. Funding, automation and the SnapTrade
@@ -118,21 +124,71 @@ export function NavRail({ onNavigate }: { onNavigate?: () => void }) {
           <PulseDot />
           Sandbox — simulated data
         </Chip>
-        <Link
-          href={mode === 'authenticated' ? '/wallet' : '/sign-in'}
-          {...(onNavigate ? { onClick: onNavigate } : {})}
-          className="flex items-center gap-2.5 rounded-lg border border-stroke-hairline bg-fill-subtle px-2.5 py-2 transition-colors hover:bg-fill-press">
-          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-cobalt to-violet text-[11px] font-semibold text-white">
-            M
-          </span>
-          <span className="min-w-0 text-[12.5px] leading-tight font-semibold">
-            Maya
-            <span className="num block truncate text-[10.5px] font-normal text-ink-faint">
-              {mode === 'authenticated' ? 'Privy wallet' : '0x7A4C…9E21'}
+        <div className="flex items-center gap-1.5">
+          <Link
+            href={mode === 'authenticated' ? '/wallet' : '/sign-in'}
+            {...(onNavigate ? { onClick: onNavigate } : {})}
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg border border-stroke-hairline bg-fill-subtle px-2.5 py-2 transition-colors hover:bg-fill-press">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-cobalt to-violet text-[11px] font-semibold text-white">
+              {isPrivyConfigured ? <PrivyNavAvatar /> : 'M'}
             </span>
-          </span>
-        </Link>
+            <span className="min-w-0 text-[12.5px] leading-tight font-semibold">
+              {isPrivyConfigured ? <PrivyNavLabel /> : 'Maya'}
+              <span className="num block truncate text-[10.5px] font-normal text-ink-faint">
+                {mode === 'authenticated' ? 'Privy wallet' : '0x7A4C…9E21'}
+              </span>
+            </span>
+          </Link>
+          {isPrivyConfigured && mode === 'authenticated' ? <PrivyNavSignOut /> : null}
+        </div>
       </div>
     </nav>
+  );
+}
+
+function PrivyNavAvatar() {
+  const { user } = usePrivy();
+  const email = user?.email?.address;
+  const initial = email ? (email[0]?.toUpperCase() ?? 'U') : 'M';
+  return <>{initial}</>;
+}
+
+function PrivyNavLabel() {
+  const { user } = usePrivy();
+  const email = user?.email?.address;
+  const name = email ? (email.split('@')[0] ?? 'User') : 'Maya';
+  return <span className="block truncate">{name}</span>;
+}
+
+function PrivyNavSignOut() {
+  const { ready, authenticated, logout } = usePrivy();
+  const { disconnect } = useDisconnect();
+  const { leaveSandbox } = useSession();
+  const [busy, setBusy] = useState(false);
+
+  if (!ready || !authenticated) return null;
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      disabled={busy}
+      onClick={async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setBusy(true);
+        try {
+          await logout();
+          disconnect();
+          leaveSandbox();
+        } finally {
+          setBusy(false);
+        }
+      }}
+      title="Sign out of Privy"
+      aria-label="Sign out of Privy"
+      className="text-ink-tertiary hover:bg-fill-press hover:text-ink-primary">
+      <LogOut className="size-3.5" aria-hidden />
+    </Button>
   );
 }

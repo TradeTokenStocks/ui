@@ -1,17 +1,17 @@
 'use client';
 
-import { PrivyProvider } from '@privy-io/react-auth';
+import { PrivyProvider, usePrivy } from '@privy-io/react-auth';
 
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { BrokerageHoldingsProvider } from '@/features/connections/hooks/use-brokerage-holdings';
 import { defaultChain, supportedChains } from '@/lib/chains';
 import { privyAppId, privyClientId } from '@/lib/privy';
-import { SessionProvider } from '@/lib/session';
+import { SessionProvider, useSession } from '@/lib/session';
 import { wagmiConfig } from '@/lib/wagmi';
 import { WagmiProvider } from '@privy-io/wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
-import { WagmiProvider as StandardWagmiProvider } from 'wagmi';
+import { useEffect, useState } from 'react';
+import { useDisconnect, WagmiProvider as StandardWagmiProvider } from 'wagmi';
 
 /**
  * Web uses `@privy-io/react-auth`. The React Native SDK is iOS/Android only and
@@ -35,6 +35,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
  * optional integration is unconfigured would be the wrong trade. Sign-in
  * reports the missing configuration on its own screen instead.
  */
+function PrivySessionSync() {
+  const { ready, authenticated } = usePrivy();
+  const { mode, enterAuthenticated, leaveSandbox } = useSession();
+  const { disconnect } = useDisconnect();
+
+  useEffect(() => {
+    if (!ready) return;
+    if (authenticated && mode !== 'authenticated') {
+      enterAuthenticated();
+    } else if (!authenticated && mode === 'authenticated') {
+      leaveSandbox();
+      disconnect();
+    }
+  }, [ready, authenticated, mode, enterAuthenticated, leaveSandbox, disconnect]);
+
+  return null;
+}
+
 function PrivyGate({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
   if (!privyAppId) {
@@ -67,6 +85,7 @@ function PrivyGate({ children }: { children: React.ReactNode }) {
       }}>
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
+          <PrivySessionSync />
           <BrokerageHoldingsProvider>{children}</BrokerageHoldingsProvider>
         </WagmiProvider>
       </QueryClientProvider>
