@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { TokenizedStock } from '@tradetoken/domain';
+import { hackathonDeployment, type TokenizedStock } from '@tradetoken/domain';
 import { tokenizedStocks } from '@tradetoken/domain/fixtures';
 import { Search } from 'lucide-react';
 
@@ -31,9 +31,10 @@ export function AquaTokenSelectDialog({ open, onOpenChange, tokenA, tokenB, onSe
   const rows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return tokenizedStocks.filter((stock) => {
+      const isDeployed = hackathonDeployment.status !== 'live' || Boolean(stock.address);
       const matchesCategory = category === 'All' || stock.categories.includes(category);
       const matchesQuery = !normalized || `${stock.name} ${stock.ticker} ${stock.symbol} ${stock.issuer}`.toLowerCase().includes(normalized);
-      return matchesCategory && matchesQuery;
+      return isDeployed && matchesCategory && matchesQuery;
     });
   }, [category, query]);
 
@@ -78,7 +79,7 @@ export function AquaTokenSelectDialog({ open, onOpenChange, tokenA, tokenB, onSe
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13.5px] font-semibold">{stock.name}</span>
                   <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-quaternary">
-                    <Num>{stock.symbol}</Num><span>·</span><span>{stock.issuer === 'dinari' ? 'Dinari' : 'xStock'}</span><span>·</span><Num>{stock.address ? `${stock.address.slice(0, 6)}…${stock.address.slice(-4)}` : 'awaiting deployment'}</Num>
+                    <Num>{stock.symbol}</Num><span>·</span><span>{stock.issuer === 'ondo' ? 'Ondo' : 'xStock'}</span><span>·</span><Num>{stock.address ? `${stock.address.slice(0, 6)}…${stock.address.slice(-4)}` : 'awaiting deployment'}</Num>
                   </span>
                 </span>
                 <span className="shrink-0 text-right">
@@ -109,5 +110,5 @@ function SearchField({ label, symbol, value, active, onFocus, onChange }: { labe
 }
 
 export function TokenMark({ stock, size = 'md' }: { stock: TokenizedStock; size?: 'sm' | 'md' }) {
-  return <span className={cn('grid shrink-0 place-items-center rounded-full border font-semibold', size === 'sm' ? 'size-7 text-[9px]' : 'size-10 text-[10px]', stock.issuer === 'dinari' ? 'border-cobalt/35 bg-cobalt/15 text-cobalt-text' : 'border-violet/35 bg-violet/15 text-[#B9A3FF]')}>{stock.issuer === 'dinari' ? 'D' : 'X'}</span>;
+  return <span className={cn('grid shrink-0 place-items-center rounded-full border font-semibold', size === 'sm' ? 'size-7 text-[9px]' : 'size-10 text-[10px]', stock.issuer === 'xstock' ? 'border-cobalt/35 bg-cobalt/15 text-cobalt-text' : 'border-violet/35 bg-violet/15 text-[#B9A3FF]')}>{stock.issuer === 'xstock' ? 'X' : 'O'}</span>;
 }

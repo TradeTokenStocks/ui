@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackButton } from '@/components/ui/back-button';
 import { Body, Display, Num } from '@/components/ui/text';
-import { executableTotalUsd, formatUsd } from '@tradetoken/domain';
+import { executableTotalUsd, formatUsd, hackathonDeployment } from '@tradetoken/domain';
 import { companies, companyDetails } from '@tradetoken/domain/fixtures';
 import { fill, ink, palette, radius, space, stroke } from '@/theme/tokens';
 import { goBackOrHome } from '@/navigation/go-back';
@@ -24,10 +24,13 @@ export function StrategyCompanyPickerScreen() {
   const eligible = companies.reduce<{ company: (typeof companies)[number]; executableUsd: number }[]>(
     (acc, company) => {
       const detail = companyDetails[company.ticker];
+      const hasLivePair =
+        hackathonDeployment.status !== 'live' ||
+        hackathonDeployment.stocks.some((stock) => stock.underlying === company.ticker);
       // Guards fixture drift (a `companies` entry with no matching
       // `companyDetails` row) rather than crashing the whole screen over it.
       const executableUsd = detail ? executableTotalUsd(detail) : 0;
-      if (executableUsd > 0) acc.push({ company, executableUsd });
+      if (executableUsd > 0 && hasLivePair) acc.push({ company, executableUsd });
       return acc;
     },
     [],

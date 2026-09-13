@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { formatUsd } from '@tradetoken/domain';
+import { formatUsd, hackathonDeployment } from '@tradetoken/domain';
 import { pairedRepresentations, stockRepresentation } from '@tradetoken/domain/fixtures';
 import { ArrowLeft, Check, ChevronDown, Info, RotateCcw, ShieldCheck } from 'lucide-react';
 
@@ -14,7 +14,9 @@ import { AquaPositionChart } from './components/aqua-position-chart';
 import { AquaTokenSelectDialog, TokenMark } from './components/aqua-token-select-dialog';
 import { useAquaPositionState } from './hooks/use-aqua-position-state';
 
-const QUICK_PAIRS = ['NVDA', 'AAPL', 'TSLA', 'MSFT'] as const;
+const QUICK_PAIRS = hackathonDeployment.status === 'live'
+  ? hackathonDeployment.stocks.filter((stock) => stock.issuer === 'xStock').map((stock) => stock.underlying)
+  : ['NVDA', 'AAPL', 'TSLA', 'MSFT'];
 const FEES = [5, 30, 100] as const;
 
 export function AquaPositionBuilder({
@@ -35,10 +37,10 @@ export function AquaPositionBuilder({
   const totalUsd = (Number(position.amountA) || 0) + (Number(position.amountB) || 0);
 
   const pickPair = (ticker: string) => {
-    const [dinari, xstock] = pairedRepresentations(ticker);
-    if (!dinari || !xstock) return;
-    position.selectToken('a', dinari);
-    position.selectToken('b', xstock);
+    const [xstock, ondo] = pairedRepresentations(ticker);
+    if (!xstock || !ondo) return;
+    position.selectToken('a', xstock);
+    position.selectToken('b', ondo);
   };
 
   return (
@@ -176,7 +178,7 @@ function AmountCard({ label, token, amount, onChange }: { label: string; token: 
         <TokenMark stock={token} size="sm" />
         <span className="min-w-0 flex-1">
           <span className="block text-[11px] font-semibold">{token.symbol}</span>
-          <span className="block text-[9.5px] text-ink-faint">{token.issuer === 'dinari' ? 'Dinari' : 'xStock'}</span>
+          <span className="block text-[9.5px] text-ink-faint">{token.issuer === 'ondo' ? 'Ondo' : 'xStock'}</span>
         </span>
         <span className="flex items-baseline gap-1"><span className="text-ink-faint">$</span><input inputMode="decimal" value={amount} onChange={(event) => onChange(event.target.value)} aria-label={`${token.symbol} allocation in dollars`} className="w-20 bg-transparent text-right font-mono text-lg font-medium outline-none" /></span>
       </span>

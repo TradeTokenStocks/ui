@@ -11,6 +11,7 @@ import type { DeployedStockToken, LiveHackathonDeployment } from "./deployment";
 import {
   aquaAbi,
   decodeMultiplierGuardFailure,
+  multiplierUpdateCall,
   multiplierGuardErrorAbi,
   stockMintCall,
   swapVmAbi,
@@ -29,33 +30,33 @@ import {
 } from "./live-aqua";
 
 const tokenA: DeployedStockToken = {
-  id: "dinari-nvda",
+  id: "xstock-nvda",
   underlying: "NVDA",
-  issuer: "Dinari",
-  name: "Dinari Nvidia",
-  symbol: "dNVDA",
+  issuer: "xStock",
+  name: "NVIDIA xStock",
+  symbol: "NVDAx",
   address: "0x1000000000000000000000000000000000000001",
   decimals: 18,
   multiplierRead: "multiplier",
   mintFunction: "mintTo",
-  multiplierWrite: "setMultiplier",
+  multiplierWrite: "updateMultiplier",
 };
 
 const tokenB: DeployedStockToken = {
   ...tokenA,
-  id: "xstock-nvda",
-  issuer: "xStock",
-  name: "xStock Nvidia",
-  symbol: "xNVDA",
+  id: "ondo-nvda",
+  issuer: "Ondo",
+  name: "NVIDIA (Ondo Tokenized)",
+  symbol: "NVDAon",
   address: "0x2000000000000000000000000000000000000002",
 };
 
 const deployment: LiveHackathonDeployment = {
   status: "live",
-  chainId: 46_630,
-  chainName: "Robinhood Chain Testnet",
-  rpcUrl: "https://rpc.testnet.chain.robinhood.com",
-  explorerUrl: "https://explorer.testnet.chain.robinhood.com",
+  chainId: 11_155_111,
+  chainName: "Ethereum Sepolia",
+  rpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
+  explorerUrl: "https://sepolia.etherscan.io",
   deploymentBlock: 1n,
   swapVmCommit: "a7f38df16b148e95d69725197836acc2459c603a",
   contracts: {
@@ -110,6 +111,14 @@ describe("live Aqua integration", () => {
     expect(
       stockMintCall({ ...tokenA, mintFunction: "none" }, tokenB.address, 12n),
     ).toBeNull();
+  });
+
+  test("maps the deployed mock token's multiplier setter", () => {
+    expect(multiplierUpdateCall(tokenA, 10n ** 18n)).toEqual({
+      address: tokenA.address,
+      functionName: "updateMultiplier",
+      args: [10n ** 18n],
+    });
   });
 
   test("builds a decodable guarded, fee-bearing pegged order and Aqua ship call", () => {

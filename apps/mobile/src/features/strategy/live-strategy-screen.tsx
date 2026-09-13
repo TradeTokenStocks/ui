@@ -121,13 +121,13 @@ export function LiveStrategyScreen({
 
         <View style={styles.balanceGrid}>
           <BalanceCard
-            issuer="Dinari"
+            issuer={record.tokenA.issuer ?? "xStock"}
             symbol={record.tokenA.symbol}
             amount={tokenAmount(balanceA, record.tokenA.decimals)}
             accent={palette.cobaltText}
           />
           <BalanceCard
-            issuer="xStock"
+            issuer={record.tokenB.issuer ?? "Ondo"}
             symbol={record.tokenB.symbol}
             amount={tokenAmount(balanceB, record.tokenB.decimals)}
             accent={palette.violet}

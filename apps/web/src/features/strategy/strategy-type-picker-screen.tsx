@@ -38,7 +38,7 @@ export function StrategyTypePickerScreen({ ticker }: { ticker: string }) {
             href={{ pathname: '/strategies/new/configure', query: { mechanism: 'pegged', ticker: company.ticker } }}
             title="Same-stock pegged"
             description="Provide liquidity between two tokenized representations of the same company, near their calculated parity."
-            note={`${company.ticker} has Dinari and xStock representations ready`}
+            note={`${company.ticker} has Ondo and xStock representations ready`}
           />
         ) : (
           <Panel aria-disabled className="p-5 opacity-55">

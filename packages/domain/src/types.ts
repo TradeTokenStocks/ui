@@ -17,7 +17,7 @@ export type Provenance = 'onchain' | 'observed';
 export type DividendPreference = 'drip' | 'usdc';
 
 /** Issuer/representation families supported by the tokenized-stock catalog. */
-export type StockIssuer = 'dinari' | 'xstock';
+export type StockIssuer = 'xstock' | 'ondo';
 
 /** A chain-specific tokenized representation available to mint or allocate. */
 export type TokenizedStock = {

@@ -111,6 +111,13 @@ export const stockTokenAbi = [
     inputs: [{ name: "nextMultiplier", type: "uint256" }],
     outputs: [],
   },
+  {
+    type: "function",
+    name: "updateMultiplier",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "newMultiplier", type: "uint256" }],
+    outputs: [],
+  },
 ] as const;
 
 export const aquaAbi = AquaSdkAbi.AQUA_ABI;
@@ -258,7 +265,8 @@ export type ContractFunctionCall = {
     | "faucetAmount"
     | "faucet"
     | "setMultiplier"
-    | "setUiMultiplier";
+    | "setUiMultiplier"
+    | "updateMultiplier";
   args: readonly unknown[];
 };
 

@@ -26,7 +26,9 @@ export function AddStockDialog({ open, onOpenChange, onComplete }: Props) {
   const [stock, setStock] = useState<TokenizedStock | null>(null);
   const [amount, setAmount] = useState('500');
   const [preference, setPreference] = useState<DividendPreference>('drip');
-  const catalog = tokenizedStocks.filter((item) => item.issuer === 'dinari');
+  const catalog = tokenizedStocks.filter(
+    (item) => item.issuer === 'xstock' && (hackathonDeployment.status !== 'live' || Boolean(item.address)),
+  );
   const normalized = query.trim().toLowerCase();
   const rows = catalog.filter((item) => !normalized || `${item.name} ${item.ticker}`.toLowerCase().includes(normalized));
   const amountUsd = Number(amount) || 0;
@@ -117,7 +119,7 @@ export function AddStockDialog({ open, onOpenChange, onComplete }: Props) {
         {step === 3 && stock ? (
           <div className="space-y-5 p-5">
             <div className="rounded-2xl border border-cobalt/25 bg-cobalt/[0.055] p-5 text-center"><span className="mx-auto grid size-12 place-items-center rounded-full bg-cobalt/15 text-cobalt-text"><Check className="size-5" /></span><Display className="mt-3 text-xl">{formatCurrency(amountUsd)} of {stock.ticker}</Display><p className="mt-1 text-[11.5px] text-ink-quaternary">Ready to tokenize into your embedded wallet</p></div>
-            <dl className="space-y-3 rounded-xl border border-stroke-hairline bg-fill-subtle p-4"><ReviewFact label="Stock" value={`${stock.name} (${stock.ticker})`} /><ReviewFact label="Representations" value="Dinari + xStock" /><ReviewFact label="Dividends" value={preference === 'drip' ? 'Auto-reinvest · multiplier' : 'USDC wallet payout'} /><ReviewFact label="Network" value={live.deploymentReady ? hackathonDeployment.chainName : 'Deployment network pending'} /><ReviewFact label="Gas" value="Sponsored" /><ReviewFact label="Recipient" value={recipient} /></dl>
+            <dl className="space-y-3 rounded-xl border border-stroke-hairline bg-fill-subtle p-4"><ReviewFact label="Stock" value={`${stock.name} (${stock.ticker})`} /><ReviewFact label="Representations" value="xStock + Ondo" /><ReviewFact label="Dividends" value={preference === 'drip' ? 'Auto-reinvest · multiplier' : 'USDC wallet payout'} /><ReviewFact label="Network" value={live.deploymentReady ? hackathonDeployment.chainName : 'Deployment network pending'} /><ReviewFact label="Gas" value="Sponsored" /><ReviewFact label="Recipient" value={recipient} /></dl>
             {live.error ? <p className="text-center text-[11.5px] text-amber-bright">{live.error}</p> : null}
             <Button size="lg" className="w-full" disabled={live.busy} onClick={() => void confirm()}>{live.deploymentReady ? live.label : 'Confirm & tokenize stock'}</Button>
             <p className="text-center text-[10.5px] text-ink-faint">{live.deploymentReady ? 'Mints both representations into your embedded wallet.' : 'Sandbox confirmation until mint contracts are connected.'}</p>

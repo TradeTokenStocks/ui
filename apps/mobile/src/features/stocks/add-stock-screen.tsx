@@ -47,7 +47,8 @@ export function AddStockScreen() {
   const normalized = query.trim().toLowerCase();
   const rows = tokenizedStocks.filter(
     (item) =>
-      item.issuer === "dinari" &&
+      item.issuer === "xstock" &&
+      (hackathonDeployment.status !== "live" || Boolean(item.address)) &&
       (!normalized ||
         `${item.name} ${item.ticker}`.toLowerCase().includes(normalized)),
   );
@@ -121,8 +122,8 @@ export function AddStockScreen() {
           <>
             <Display size={30}>What do you want to add?</Display>
             <Body size={12.5} color={ink.tertiary} style={styles.intro}>
-              Choose a company. The sandbox prepares both Dinari and xStock
-              representations for the strategy demo.
+              Choose a company. We prepare its xStock and Ondo representations
+              for the same-stock strategy.
             </Body>
             <View style={styles.search}>
               <Body size={16} color={ink.faint}>
@@ -174,7 +175,7 @@ export function AddStockScreen() {
                   <View style={styles.trailing}>
                     <Num size={12.5}>${item.priceUsd.toFixed(2)}</Num>
                     <Body size={10} color={ink.faint} style={styles.sub}>
-                      Dinari + xStock
+                      xStock + Ondo
                     </Body>
                   </View>
                 </Pressable>
@@ -298,7 +299,7 @@ export function AddStockScreen() {
             </View>
             <View style={styles.panel}>
               <Fact label="Stock" value={`${stock.name} (${stock.ticker})`} />
-              <Fact label="Representations" value="Dinari + xStock" />
+              <Fact label="Representations" value="xStock + Ondo" />
               <Fact
                 label="Dividends"
                 value={

@@ -73,10 +73,10 @@ export function StrategyReviewScreen() {
   const ticker = params.ticker?.toUpperCase() || "NVDA";
   const pegged = params.mode === "pegged";
   const tokenA = stockRepresentation(
-    params.tokenA ?? `dinari-${ticker.toLowerCase()}`,
+    params.tokenA ?? `xstock-${ticker.toLowerCase()}`,
   );
   const tokenB = stockRepresentation(
-    params.tokenB ?? `xstock-${ticker.toLowerCase()}`,
+    params.tokenB ?? `ondo-${ticker.toLowerCase()}`,
   );
   const amountA = numericParam(params.amountA, 20);
   const amountB = numericParam(params.amountB, 20);
@@ -277,12 +277,12 @@ export function StrategyReviewScreen() {
 
         <View style={styles.facts}>
           <Fact
-            label={pegged ? "Dinari multiplier" : "Multiplier guard"}
+            label={pegged ? `${tokenA?.issuer === "xstock" ? "xStock" : "Ondo"} multiplier` : "Multiplier guard"}
             value={`${multiplierBounds.min.toFixed(2)}x — ${multiplierBounds.max.toFixed(2)}x`}
           />
           {pegged ? (
             <Fact
-              label="xStock multiplier"
+              label={`${tokenB?.issuer === "xstock" ? "xStock" : "Ondo"} multiplier`}
               value={`${((tokenB?.multiplier ?? 1) * (1 - guard / 100)).toFixed(2)}x — ${((tokenB?.multiplier ?? 1) * (1 + guard / 100)).toFixed(2)}x`}
             />
           ) : null}

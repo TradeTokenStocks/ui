@@ -14,7 +14,10 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 
 import { aquaAbi, stockTokenAbi, swapVmAbi } from "../src/contracts";
-import { hackathonInfrastructure } from "../src/deployment";
+import {
+  hackathonInfrastructure,
+  type ContractAddress,
+} from "../src/deployment";
 import {
   buildDockCall,
   buildLiveConcentratedPosition,
@@ -33,13 +36,39 @@ const infrastructure = {
   ...hackathonInfrastructure,
   rpcUrl: process.env.POSITION_CHECK_RPC_URL ?? hackathonInfrastructure.rpcUrl,
 };
-const weth = infrastructure.referenceTokens.find(
+const configuredWeth = infrastructure.referenceTokens.find(
   (token) => token.symbol === "WETH",
 );
-const usdc = infrastructure.referenceTokens.find(
+const configuredUsdc = infrastructure.referenceTokens.find(
   (token) => token.symbol === "USDC",
 );
-if (!weth || !usdc) throw new Error("WETH and USDC must be configured.");
+if (!configuredWeth || !configuredUsdc) {
+  throw new Error("WETH and USDC must be configured.");
+}
+const weth = {
+  ...configuredWeth,
+  address:
+    (process.env.POSITION_CHECK_WETH_ADDRESS as ContractAddress | undefined) ??
+    configuredWeth.address,
+};
+const usdc = {
+  ...configuredUsdc,
+  address:
+    (process.env.POSITION_CHECK_USDC_ADDRESS as ContractAddress | undefined) ??
+    configuredUsdc.address,
+  decimals: process.env.POSITION_CHECK_USDC_DECIMALS
+    ? Number(process.env.POSITION_CHECK_USDC_DECIMALS)
+    : configuredUsdc.decimals,
+};
+if (
+  !Number.isInteger(usdc.decimals) ||
+  usdc.decimals < 0 ||
+  usdc.decimals > 255
+) {
+  throw new Error(
+    "POSITION_CHECK_USDC_DECIMALS must be an integer from 0 to 255.",
+  );
+}
 
 const chain = defineChain({
   id: infrastructure.chainId,
@@ -60,6 +89,10 @@ const walletClient = createWalletClient({
 });
 const reserveWeth = parseEther("0.1");
 const reserveUsdc = parseUnits("250", usdc.decimals);
+const priceScale = 10n ** 18n;
+const wethIsTokenA = BigInt(weth.address) < BigInt(usdc.address);
+const rawPriceMin = wethIsTokenA ? 1_500n * priceScale : priceScale / 3_500n;
+const rawPriceMax = wethIsTokenA ? 3_500n * priceScale : priceScale / 1_500n;
 
 async function wait(hash: Hash) {
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -102,8 +135,8 @@ const position = buildLiveConcentratedPosition({
   tokenB: usdc,
   reserveA: reserveWeth,
   reserveB: reserveUsdc,
-  rawPriceMin: 10n ** 18n / 3_500n,
-  rawPriceMax: 10n ** 18n / 1_500n,
+  rawPriceMin,
+  rawPriceMax,
   salt: BigInt(Date.now()),
 });
 const shipHash = await wait(
@@ -197,6 +230,9 @@ if (
 }
 
 console.log(`✓ Shipped WETH/USDC position: ${shipHash}`);
+console.log(
+  `✓ Pair: ${weth.address} / ${usdc.address} (${usdc.decimals} decimals)`,
+);
 console.log(`✓ Strategy registered: ${position.strategyHash}`);
 console.log(
   `✓ Aqua raw balances: ${registeredWeth[0]} WETH / ${registeredUsdc[0]} USDC`,

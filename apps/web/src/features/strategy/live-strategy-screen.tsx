@@ -104,8 +104,8 @@ function LiveStrategyScreen({ record }: { record: LiveStrategyRecord }) {
 
       <Panel className="p-5">
         <div className="grid gap-3 sm:grid-cols-2">
-          <BalanceCard issuer="Dinari" symbol={record.tokenA.symbol} amount={tokenAmount(balanceA, record.tokenA.decimals)} />
-          <BalanceCard issuer="xStock" symbol={record.tokenB.symbol} amount={tokenAmount(balanceB, record.tokenB.decimals)} />
+          <BalanceCard issuer={record.tokenA.issuer ?? 'xStock'} symbol={record.tokenA.symbol} amount={tokenAmount(balanceA, record.tokenA.decimals)} />
+          <BalanceCard issuer={record.tokenB.issuer ?? 'Ondo'} symbol={record.tokenB.symbol} amount={tokenAmount(balanceB, record.tokenB.decimals)} />
         </div>
         <SandboxNote className="mt-3 text-center">
           {live.position

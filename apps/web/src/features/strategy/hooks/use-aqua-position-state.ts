@@ -6,8 +6,8 @@ import { tokenizedStocks } from '@tradetoken/domain/fixtures';
 
 export type PositionCurve = 'straight' | 'curved';
 
-const DEFAULT_A = tokenizedStocks.find((stock) => stock.id === 'dinari-nvda')!;
-const DEFAULT_B = tokenizedStocks.find((stock) => stock.id === 'xstock-nvda')!;
+const DEFAULT_A = tokenizedStocks.find((stock) => stock.id === 'xstock-nvda')!;
+const DEFAULT_B = tokenizedStocks.find((stock) => stock.id === 'ondo-nvda')!;
 
 export function useAquaPositionState(initial?: { tokenA?: TokenizedStock | undefined; tokenB?: TokenizedStock | undefined }) {
   const startA = initial?.tokenA ?? DEFAULT_A;

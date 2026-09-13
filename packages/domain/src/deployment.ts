@@ -10,6 +10,7 @@ export type MintFunction =
 export type MultiplierWriteFunction =
   | "setMultiplier"
   | "setUiMultiplier"
+  | "updateMultiplier"
   | "none";
 
 export type DeployedStockToken = {
@@ -96,10 +97,60 @@ export const hackathonInfrastructure: HackathonInfrastructure = {
 
 export const hackathonDeployment: HackathonDeployment = {
   ...hackathonInfrastructure,
-  status: "pending",
-  expectedSwapVmCommit: "a7f38df16b148e95d69725197836acc2459c603a",
-  reason:
-    "Aqua, Swap-VM, WETH, and USDC are verified on Sepolia; waiting for the Dinari and xStock token manifest.",
+  status: "live",
+  deploymentBlock: BigInt(11_694_875),
+  swapVmCommit: "a7f38df16b148e95d69725197836acc2459c603a",
+  strategy: { linearWidth: BigInt(20) * BigInt(10) ** BigInt(27) },
+  stocks: [
+    {
+      id: "xstock-nvda",
+      underlying: "NVDA",
+      issuer: "xStock",
+      name: "NVIDIA xStock",
+      symbol: "NVDAx",
+      address: "0x3a4fCeF090332aFcf648b4A3aE448DF942eA122F",
+      decimals: 18,
+      multiplierRead: "multiplier",
+      mintFunction: "mint",
+      multiplierWrite: "updateMultiplier",
+    },
+    {
+      id: "ondo-nvda",
+      underlying: "NVDA",
+      issuer: "Ondo",
+      name: "NVIDIA (Ondo Tokenized)",
+      symbol: "NVDAon",
+      address: "0x9811d8A34E6A5aB3d58A7B2f6715B202a35397ee",
+      decimals: 18,
+      multiplierRead: "multiplier",
+      mintFunction: "mint",
+      multiplierWrite: "updateMultiplier",
+    },
+    {
+      id: "xstock-aapl",
+      underlying: "AAPL",
+      issuer: "xStock",
+      name: "Apple xStock",
+      symbol: "AAPLx",
+      address: "0xDCE0231bb5F5CA2AD0557cDba042D627Aaa56384",
+      decimals: 18,
+      multiplierRead: "multiplier",
+      mintFunction: "mint",
+      multiplierWrite: "updateMultiplier",
+    },
+    {
+      id: "ondo-aapl",
+      underlying: "AAPL",
+      issuer: "Ondo",
+      name: "Apple (Ondo Tokenized)",
+      symbol: "AAPLon",
+      address: "0x1cA92bE359377F1FC4754557e0E013dad593826C",
+      decimals: 18,
+      multiplierRead: "multiplier",
+      mintFunction: "mint",
+      multiplierWrite: "updateMultiplier",
+    },
+  ],
 };
 
 export function requireLiveDeployment(

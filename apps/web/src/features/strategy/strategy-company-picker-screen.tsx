@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { executableTotalUsd, formatUsd } from '@tradetoken/domain';
+import { executableTotalUsd, formatUsd, hackathonDeployment } from '@tradetoken/domain';
 import { companies, companyDetails } from '@tradetoken/domain/fixtures';
 
 import { Display, Num, Panel } from '@/components/primitives';
@@ -7,8 +7,11 @@ import { Display, Num, Panel } from '@/components/primitives';
 export function StrategyCompanyPickerScreen() {
   const eligible = companies.flatMap((company) => {
     const detail = companyDetails[company.ticker];
+    const hasLivePair =
+      hackathonDeployment.status !== 'live' ||
+      hackathonDeployment.stocks.some((stock) => stock.underlying === company.ticker);
     const executableUsd = detail ? executableTotalUsd(detail) : 0;
-    return executableUsd > 0 ? [{ company, executableUsd }] : [];
+    return executableUsd > 0 && hasLivePair ? [{ company, executableUsd }] : [];
   });
 
   return (

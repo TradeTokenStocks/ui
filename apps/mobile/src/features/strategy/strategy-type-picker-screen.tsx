@@ -33,7 +33,7 @@ const OPTIONS: MechanismOption[] = [
 /**
  * Step 2 of opening a strategy: which Aqua mechanism, for the company chosen
  * in step 1. Same-stock pegged opens the Aqua position builder whenever the
- * company has both Dinari and xStock representations.
+ * company has both Ondo and xStock representations.
  */
 export function StrategyTypePickerScreen() {
   const insets = useSafeAreaInsets();
@@ -67,7 +67,7 @@ export function StrategyTypePickerScreen() {
             const eligibleNote =
               option.mechanism === 'pegged'
                 ? peggedEligible
-                  ? `${ticker} has Dinari and xStock representations ready`
+                  ? `${ticker} has Ondo and xStock representations ready`
                   : `Needs a second tokenized representation of ${ticker}`
                 : null;
 
