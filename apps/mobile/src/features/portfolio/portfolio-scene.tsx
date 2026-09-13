@@ -34,14 +34,13 @@ import {
   activity,
   companies,
   companyDetails,
-  events,
-  hasUnreviewedEvents,
   tokenizedStocks,
   totals,
 } from '@tradetoken/domain/fixtures';
 import { useBrokerageHoldings } from '@/features/connections/hooks/use-brokerage-holdings';
 import { useAddedStockHoldings } from '@/features/stocks/stock-holdings-store';
 import { useWalletStockHoldings } from '@/features/stocks/use-wallet-stock-holdings';
+import { useIndexedEvents } from '@/features/events/use-indexed-events';
 
 /** Height of the dither field at the top of the screen. */
 const FIELD_HEIGHT = 380;
@@ -56,12 +55,6 @@ function onchainValueUsd(company: CompanyExposure): number {
   return company.valueUsd * (company.onchainPct / 100);
 }
 
-const SEGMENTS: Segment[] = [
-  { key: 'holdings', label: 'Holdings' },
-  { key: 'events', label: 'Events', badge: hasUnreviewedEvents },
-  { key: 'activity', label: 'Activity' },
-];
-
 /**
  * The portfolio destination, chrome-less: no dock, no scene transition of its
  * own. The dock shell keeps it mounted across switches, so the segment choice
@@ -73,6 +66,12 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
   const added = useAddedStockHoldings();
   const brokerage = useBrokerageHoldings();
   const walletStocks = useWalletStockHoldings();
+  const indexedEvents = useIndexedEvents();
+  const segments: Segment[] = [
+    { key: 'holdings', label: 'Holdings' },
+    { key: 'events', label: 'Events', badge: indexedEvents.events.length > 0 },
+    { key: 'activity', label: 'Activity' },
+  ];
   const { user } = usePrivy();
 
   const emailAccount = user?.linked_accounts?.find((acc) => acc.type === 'email');
@@ -258,7 +257,7 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
         </View>
 
         <View style={styles.segmentWrap}>
-          <Segmented segments={SEGMENTS} value={segment} onChange={setSegment} />
+          <Segmented segments={segments} value={segment} onChange={setSegment} />
         </View>
 
         <View style={styles.panel}>
@@ -321,7 +320,16 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
               </>
             ) : (
               <View style={styles.ledger}>
-                {(segment === 'events' ? events : activity).map((row) => (
+                {segment === 'events' && indexedEvents.loading ? (
+                  <Body size={12} color={ink.faint} style={styles.ledgerStatus}>Loading indexed events…</Body>
+                ) : null}
+                {segment === 'events' && indexedEvents.error ? (
+                  <Body size={12} color={palette.amberBright} style={styles.ledgerStatus}>{indexedEvents.error}</Body>
+                ) : null}
+                {segment === 'events' && !indexedEvents.loading && !indexedEvents.error && indexedEvents.events.length === 0 ? (
+                  <Body size={12} color={ink.faint} style={styles.ledgerStatus}>No multiplier updates indexed yet.</Body>
+                ) : null}
+                {(segment === 'events' ? indexedEvents.events : activity).map((row) => (
                   <LedgerItem key={row.id} row={row} />
                 ))}
               </View>
@@ -644,6 +652,7 @@ const styles = StyleSheet.create({
   splitLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
 
   ledger: { paddingHorizontal: 2, paddingVertical: 4 },
+  ledgerStatus: { paddingHorizontal: 18, paddingVertical: 24, textAlign: 'center' },
   ledgerRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -22,8 +22,6 @@ import {
   activity,
   companies,
   companyDetails,
-  events,
-  hasUnreviewedEvents,
   tokenizedStocks,
   totals,
 } from '@tradetoken/domain/fixtures';
@@ -44,6 +42,7 @@ import { cn } from '@/lib/utils';
 import { useBrokerageHoldings } from '@/features/connections/hooks/use-brokerage-holdings';
 import { AddStockDialog } from '@/features/stocks/add-stock-dialog';
 import { useWalletStockHoldings } from '@/features/stocks/use-wallet-stock-holdings';
+import { useIndexedEvents } from '@/features/events/use-indexed-events';
 
 /**
  * What a company holds onchain, taken from the legs its own detail page calls
@@ -61,6 +60,7 @@ export function PortfolioScreen() {
   const [added, setAdded] = useState<Record<string, { amountUsd: number; preference: DividendPreference }>>({});
   const brokerage = useBrokerageHoldings();
   const walletStocks = useWalletStockHoldings();
+  const indexedEvents = useIndexedEvents();
   const addedTotalUsd = Object.values(added).reduce((total, holding) => total + holding.amountUsd, 0);
   /**
    * Total exposure is wallet plus brokerage, and nothing else. An unlinked or
@@ -176,7 +176,7 @@ export function PortfolioScreen() {
           <TabsTrigger value="holdings">Holdings</TabsTrigger>
           <TabsTrigger value="events" className="gap-1.5">
             Events
-            {hasUnreviewedEvents ? (
+            {indexedEvents.events.length > 0 ? (
               <span className="size-1.5 rounded-full bg-amber" aria-label="Needs review" />
             ) : null}
           </TabsTrigger>
@@ -236,8 +236,11 @@ export function PortfolioScreen() {
 
         <TabsContent value="events">
           <Panel>
+            {indexedEvents.loading ? <p className="px-5 py-8 text-center text-[12px] text-ink-faint">Loading indexed events…</p> : null}
+            {indexedEvents.error ? <p className="px-5 py-8 text-center text-[12px] text-amber-bright">{indexedEvents.error}</p> : null}
+            {!indexedEvents.loading && !indexedEvents.error && indexedEvents.events.length === 0 ? <p className="px-5 py-8 text-center text-[12px] text-ink-faint">No multiplier updates indexed yet.</p> : null}
             <ul className="divide-y divide-stroke-hairline">
-              {events.map((row) => (
+              {indexedEvents.events.map((row) => (
                 <li key={row.id}>
                   <LedgerItem row={row} />
                 </li>

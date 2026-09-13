@@ -6,3 +6,4 @@ export * from "./deployment";
 export * from "./contracts";
 export * from "./live-aqua";
 export * from "./live-flows";
+export * from "./indexed-events";
