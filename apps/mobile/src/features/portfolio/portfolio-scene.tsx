@@ -94,29 +94,74 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
     : totals.walletAllocatableUsd + addedTotalUsd;
   const brokerageObservedUsd = brokerage.connected ? brokerage.totalValueUsd : 0;
   const exposure = splitUsd(walletAllocatableUsd + brokerageObservedUsd);
-  const visibleCompanies: CompanyExposure[] = [
-    ...companies.map((company) => {
-      const holding = added[company.ticker];
-      /**
-       * Rows show only what the wallet holds. Observed exposure comes from a
-       * linked brokerage alone, listed in its own group below, so a row never
-       * claims a brokerage split that the card above reports as $0.
-       */
-      return {
-        ...company,
-        valueUsd: onchainValueUsd(company) + (holding?.amountUsd ?? 0),
-        observedPct: 0,
-        onchainPct: 100,
-        ...(holding ? { dividendPreference: holding.preference } : {}),
-      };
-    }),
-    ...Object.entries(added)
-      .filter(([ticker]) => !companies.some((company) => company.ticker === ticker))
-      .map(([ticker, holding]) => {
-        const stock = tokenizedStocks.find((item) => item.ticker === ticker)!;
-        return { ticker, name: stock.name, initials: ticker.slice(0, 2), observedPct: 0, onchainPct: 100, valueUsd: holding.amountUsd, changePct: stock.changePct, dividendPreference: holding.preference };
-      }),
-  ];
+  const liveHoldingsByTicker = (walletStocks.holdings ?? []).reduce<Record<string, number>>((acc, item) => {
+    if (item.valueUsd > 0) {
+      acc[item.underlying] = (acc[item.underlying] ?? 0) + item.valueUsd;
+    }
+    return acc;
+  }, {});
+
+  const liveTickers = Array.from(
+    new Set([...Object.keys(liveHoldingsByTicker), ...Object.keys(added)])
+  );
+
+  const visibleCompanies: CompanyExposure[] = walletStocks.live
+    ? liveTickers
+        .map((ticker) => {
+          const stock = tokenizedStocks.find((item) => item.ticker === ticker);
+          const holding = added[ticker];
+          const walletValue = (liveHoldingsByTicker[ticker] ?? 0) + (holding?.amountUsd ?? 0);
+          const brokeragePos = brokerage.connected
+            ? brokerage.positions.find((p) => p.ticker.toUpperCase() === ticker.toUpperCase())
+            : undefined;
+          const brokerageValue = brokeragePos?.valueUsd ?? 0;
+          const totalValue = walletValue + brokerageValue;
+          const onchainPct = totalValue > 0 ? Math.round((walletValue / totalValue) * 100) : 100;
+          const observedPct = 100 - onchainPct;
+
+          return {
+            ticker,
+            name: stock?.name ?? ticker,
+            initials: ticker.slice(0, 2),
+            valueUsd: totalValue,
+            changePct: stock?.changePct ?? 0,
+            observedPct,
+            onchainPct,
+            ...(holding ? { dividendPreference: holding.preference } : {}),
+          };
+        })
+        .filter((company) => company.valueUsd > 0)
+    : [
+        ...companies.map((company) => {
+          const holding = added[company.ticker];
+          return {
+            ...company,
+            valueUsd: onchainValueUsd(company) + (holding?.amountUsd ?? 0),
+            ...(holding ? { dividendPreference: holding.preference } : {}),
+          };
+        }),
+        ...Object.entries(added)
+          .filter(([ticker]) => !companies.some((company) => company.ticker === ticker))
+          .map(([ticker, holding]) => {
+            const stock = tokenizedStocks.find((item) => item.ticker === ticker)!;
+            return {
+              ticker,
+              name: stock.name,
+              initials: ticker.slice(0, 2),
+              observedPct: 0,
+              onchainPct: 100,
+              valueUsd: holding.amountUsd,
+              changePct: stock.changePct,
+              dividendPreference: holding.preference,
+            };
+          }),
+      ];
+
+  const unmergedBrokeragePositions = brokerage.connected
+    ? brokerage.positions.filter(
+        (p) => !visibleCompanies.some((c) => c.ticker.toUpperCase() === p.ticker.toUpperCase()),
+      )
+    : [];
 
   return (
     <View style={styles.root}>
@@ -274,7 +319,7 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
                         Companies
                       </Body>
                       <Body size={11.5} weight="medium" color={ink.quaternary} style={styles.panelCount}>
-                        {formatNumber(visibleCompanies.length + brokerage.positions.length)} holdings
+                        {formatNumber(visibleCompanies.length + unmergedBrokeragePositions.length)} holdings
                       </Body>
                     </View>
                     <Pressable
@@ -286,24 +331,41 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
                     </Pressable>
                   </View>
                 </View>
-                {/* The two custody models are named once a real brokerage is
-                    linked. A company can honestly appear in both groups —
-                    holding NVDA onchain and at a broker is the point — but only
-                    if the screen says which number means what. */}
                 {brokerage.connected ? (
                   <View style={styles.groupLabel}>
                     <Body size={10.5} weight="semibold" color={ink.faint} tracking={1.1}>
-                      ONCHAIN · ALLOCATABLE
+                      CONSOLIDATED · ONCHAIN & OBSERVED
                     </Body>
                   </View>
                 ) : null}
-                <View style={styles.companyList}>
-                  {visibleCompanies.map((company, index) => (
-                    <CompanyRow key={company.ticker} company={company} divided={index > 0} />
-                  ))}
-                </View>
+                {visibleCompanies.length > 0 ? (
+                  <View style={styles.companyList}>
+                    {visibleCompanies.map((company, index) => (
+                      <CompanyRow key={company.ticker} company={company} divided={index > 0} />
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.emptyContainer}>
+                    <Body size={13} weight="medium" color={ink.tertiary}>
+                      No onchain stock tokens yet
+                    </Body>
+                    <Body size={11.5} color={ink.faint} style={styles.emptyDescription}>
+                      Mint tokenized stock pairs to commit into Aqua strategies.
+                    </Body>
+                    <Pressable
+                      onPress={() => router.push('/stocks/add' as Href)}
+                      style={({ pressed }) => [
+                        styles.emptyButton,
+                        pressed && { opacity: 0.72 },
+                      ]}>
+                      <Body size={11.5} weight="medium" color={palette.cobaltText}>
+                        ＋ Mint test stocks
+                      </Body>
+                    </Pressable>
+                  </View>
+                )}
 
-                {brokerage.connected && brokerage.positions.length > 0 ? (
+                {brokerage.connected && unmergedBrokeragePositions.length > 0 ? (
                   <>
                     <View style={[styles.groupLabel, styles.groupLabelObserved]}>
                       <Body size={10.5} weight="semibold" color={ink.faint} tracking={1.1}>
@@ -311,7 +373,7 @@ export function PortfolioScene({ insets }: { insets: EdgeInsets }) {
                       </Body>
                     </View>
                     <View style={styles.companyList}>
-                      {brokerage.positions.map((position, index) => (
+                      {unmergedBrokeragePositions.map((position, index) => (
                         <ObservedRow key={position.ticker} position={position} divided={index > 0} />
                       ))}
                     </View>
@@ -609,6 +671,27 @@ const styles = StyleSheet.create({
   panelCount: { marginTop: 3 },
   addButton: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.md, backgroundColor: palette.cobalt },
   companyList: { paddingHorizontal: 10 },
+  emptyContainer: {
+    paddingVertical: space.xl,
+    paddingHorizontal: space.lg,
+    alignItems: 'center',
+  },
+  emptyDescription: {
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  emptyButton: {
+    marginTop: space.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: radius.md,
+    backgroundColor: fill.muted,
+    borderWidth: 1,
+    borderColor: stroke.hairline,
+  },
   groupLabel: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 8, borderTopWidth: 1, borderTopColor: stroke.hairline, backgroundColor: fill.subtle },
   groupLabelObserved: { marginTop: 4 },
   observedBadge: { flexShrink: 0, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.pill, borderWidth: 1, borderColor: stroke.raised, backgroundColor: fill.muted },

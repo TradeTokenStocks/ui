@@ -73,27 +73,74 @@ export function PortfolioScreen() {
     : totals.walletAllocatableUsd + addedTotalUsd;
   const brokerageObservedUsd = brokerage.connected ? brokerage.totalValueUsd : 0;
   const exposure = splitUsd(walletAllocatableUsd + brokerageObservedUsd);
-  const visibleCompanies: CompanyExposure[] = [
-    ...companies.map((company) => {
-      const holding = added[company.ticker];
-      /**
-       * Rows show only what the wallet holds. Observed exposure comes from a
-       * linked brokerage alone, listed in its own group below, so a row never
-       * claims a brokerage split that the card above reports as $0.
-       */
-      return {
-        ...company,
-        valueUsd: onchainValueUsd(company) + (holding?.amountUsd ?? 0),
-        observedPct: 0,
-        onchainPct: 100,
-        ...(holding ? { dividendPreference: holding.preference } : {}),
-      };
-    }),
-    ...Object.entries(added).filter(([ticker]) => !companies.some((company) => company.ticker === ticker)).map(([ticker, holding]) => {
-      const stock = tokenizedStocks.find((item) => item.ticker === ticker)!;
-      return { ticker, name: stock.name, initials: ticker.slice(0, 2), observedPct: 0, onchainPct: 100, valueUsd: holding.amountUsd, changePct: stock.changePct, dividendPreference: holding.preference };
-    }),
-  ];
+  const liveHoldingsByTicker = (walletStocks.holdings ?? []).reduce<Record<string, number>>((acc, item) => {
+    if (item.valueUsd > 0) {
+      acc[item.underlying] = (acc[item.underlying] ?? 0) + item.valueUsd;
+    }
+    return acc;
+  }, {});
+
+  const liveTickers = Array.from(
+    new Set([...Object.keys(liveHoldingsByTicker), ...Object.keys(added)])
+  );
+
+  const visibleCompanies: CompanyExposure[] = walletStocks.live
+    ? liveTickers
+        .map((ticker) => {
+          const stock = tokenizedStocks.find((item) => item.ticker === ticker);
+          const holding = added[ticker];
+          const walletValue = (liveHoldingsByTicker[ticker] ?? 0) + (holding?.amountUsd ?? 0);
+          const brokeragePos = brokerage.connected
+            ? brokerage.positions.find((p) => p.ticker.toUpperCase() === ticker.toUpperCase())
+            : undefined;
+          const brokerageValue = brokeragePos?.valueUsd ?? 0;
+          const totalValue = walletValue + brokerageValue;
+          const onchainPct = totalValue > 0 ? Math.round((walletValue / totalValue) * 100) : 100;
+          const observedPct = 100 - onchainPct;
+
+          return {
+            ticker,
+            name: stock?.name ?? ticker,
+            initials: ticker.slice(0, 2),
+            valueUsd: totalValue,
+            changePct: stock?.changePct ?? 0,
+            observedPct,
+            onchainPct,
+            ...(holding ? { dividendPreference: holding.preference } : {}),
+          };
+        })
+        .filter((company) => company.valueUsd > 0)
+    : [
+        ...companies.map((company) => {
+          const holding = added[company.ticker];
+          return {
+            ...company,
+            valueUsd: onchainValueUsd(company) + (holding?.amountUsd ?? 0),
+            ...(holding ? { dividendPreference: holding.preference } : {}),
+          };
+        }),
+        ...Object.entries(added)
+          .filter(([ticker]) => !companies.some((company) => company.ticker === ticker))
+          .map(([ticker, holding]) => {
+            const stock = tokenizedStocks.find((item) => item.ticker === ticker)!;
+            return {
+              ticker,
+              name: stock.name,
+              initials: ticker.slice(0, 2),
+              observedPct: 0,
+              onchainPct: 100,
+              valueUsd: holding.amountUsd,
+              changePct: stock.changePct,
+              dividendPreference: holding.preference,
+            };
+          }),
+      ];
+
+  const unmergedBrokeragePositions = brokerage.connected
+    ? brokerage.positions.filter(
+        (p) => !visibleCompanies.some((c) => c.ticker.toUpperCase() === p.ticker.toUpperCase()),
+      )
+    : [];
 
   const addStock = (stock: TokenizedStock, amountUsd: number, preference: DividendPreference) => setAdded((current) => ({ ...current, [stock.ticker]: { amountUsd: (current[stock.ticker]?.amountUsd ?? 0) + amountUsd, preference } }));
 
@@ -189,33 +236,40 @@ export function PortfolioScreen() {
               <div className="min-w-0 flex-1">
                 <Display className="text-base">Companies</Display>
                 <span className="mt-0.5 block text-[11.5px] font-medium text-ink-quaternary">
-                  {formatNumber(visibleCompanies.length + brokerage.positions.length)} holdings
+                  {formatNumber(visibleCompanies.length + unmergedBrokeragePositions.length)} holdings
                 </span>
               </div>
               <button type="button" onClick={() => setAddStockOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-cobalt px-3 py-2 text-[11.5px] font-semibold text-white shadow-[0_8px_20px_rgba(61,82,222,.25)] hover:bg-cobalt/90"><Plus className="size-3.5" /> Add stock</button>
             </div>
-            {/* The two custody models are named once a real brokerage is
-                linked. A company can honestly appear in both groups — holding
-                NVDA onchain and at a broker is the product's whole point — but
-                only if the screen says which number means what. */}
             {brokerage.connected ? (
               <div className="border-b border-stroke-hairline px-5 py-3 sm:px-6">
-                <SectionLabel>Onchain · allocatable</SectionLabel>
+                <SectionLabel>Consolidated · onchain & observed</SectionLabel>
               </div>
             ) : null}
-            <ul className="divide-y divide-stroke-hairline px-3 sm:px-4">
-              {visibleCompanies.map((company) => (
-                <li key={company.ticker}>
-                  <CompanyRow company={company} />
-                </li>
-              ))}
-            </ul>
+            {visibleCompanies.length > 0 ? (
+              <ul className="divide-y divide-stroke-hairline px-3 sm:px-4">
+                {visibleCompanies.map((company) => (
+                  <li key={company.ticker}>
+                    <CompanyRow company={company} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="px-5 py-8 text-center sm:px-6">
+                <p className="text-[13px] font-medium text-ink-tertiary">No onchain stock tokens yet</p>
+                <p className="mt-1 text-[11.5px] text-ink-quaternary">
+                  Mint tokenized stock pairs to commit into Aqua strategies.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setAddStockOpen(true)}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-stroke-hairline bg-fill-muted px-3 py-1.5 text-[11.5px] font-medium text-ink-secondary hover:border-cobalt/40 hover:text-cobalt-text">
+                  <Plus className="size-3.5" /> Mint test stocks
+                </button>
+              </div>
+            )}
 
-            {/* Observed positions stay in their own group rather than being
-                folded into the company rows above: those carry an onchain /
-                observed split this data cannot speak for, and a brokerage
-                position is not something a strategy can draw on. */}
-            {brokerage.connected && brokerage.positions.length > 0 ? (
+            {brokerage.connected && unmergedBrokeragePositions.length > 0 ? (
               <>
                 <div className="border-t border-stroke-hairline bg-fill-subtle px-5 py-3 sm:px-6">
                   <SectionLabel>
@@ -223,7 +277,7 @@ export function PortfolioScreen() {
                   </SectionLabel>
                 </div>
                 <ul className="divide-y divide-stroke-hairline px-3 sm:px-4">
-                  {brokerage.positions.map((position) => (
+                  {unmergedBrokeragePositions.map((position) => (
                     <li key={position.ticker}>
                       <ObservedRow position={position} />
                     </li>
