@@ -32,7 +32,7 @@ export type SnapTradeServerConfig = {
 
 function required(name: string, value: string | undefined): string {
   if (!value) throw new Error(`Missing server environment variable ${name}`);
-  return value;
+  return value.trim();
 }
 
 function keyMode(): SnapTradeKeyMode {

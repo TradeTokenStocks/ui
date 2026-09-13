@@ -66,20 +66,12 @@ type Linked = { scope: SnapTradeScope; sealed?: string };
  * A previously sealed credential is reused when it opens, because re-registering
  * would orphan the brokerage already linked to it.
  */
-async function linkedUser(
+async function registerFreshUser(
   config: SnapTradeServerConfig,
   subject: string,
-  credentialToken: string | undefined,
 ): Promise<Linked> {
-  if (config.mode === 'personal') return { scope: { mode: 'personal' } };
-
   const credentialKey = config.credentialKey;
   if (!credentialKey) throw new Error('Commercial mode requires a credential encryption key');
-
-  if (credentialToken) {
-    const { userId, userSecret } = openCredential(credentialToken, subject, credentialKey);
-    return { scope: { mode: 'commercial', userId, userSecret }, sealed: credentialToken };
-  }
 
   const snaptrade = commercialClient(config);
   const userId = snapTradeUserId(subject);
@@ -102,9 +94,36 @@ async function linkedUser(
     // user — registration fails every time until that orphaned user is
     // removed. Delete it and register fresh once, per SnapTrade's own
     // documented recovery path, before giving up.
-    await snaptrade.authentication.deleteSnapTradeUser({ userId });
+    try {
+      await snaptrade.authentication.deleteSnapTradeUser({ userId });
+    } catch {
+      // Ignore if deletion fails
+    }
     return await register();
   }
+}
+
+async function linkedUser(
+  config: SnapTradeServerConfig,
+  subject: string,
+  credentialToken: string | undefined,
+): Promise<Linked> {
+  if (config.mode === 'personal') return { scope: { mode: 'personal' } };
+
+  const credentialKey = config.credentialKey;
+  if (!credentialKey) throw new Error('Commercial mode requires a credential encryption key');
+
+  if (credentialToken) {
+    try {
+      const { userId, userSecret } = openCredential(credentialToken, subject, credentialKey);
+      return { scope: { mode: 'commercial', userId, userSecret }, sealed: credentialToken };
+    } catch (openErr) {
+      logUpstreamFailure('openCredential failed, recovering fresh', openErr);
+      return await registerFreshUser(config, subject);
+    }
+  }
+
+  return await registerFreshUser(config, subject);
 }
 
 export async function POST(request: NextRequest) {
@@ -134,11 +153,7 @@ export async function POST(request: NextRequest) {
   try {
     linked = await linkedUser(config, subject, credentialToken);
   } catch (error) {
-    // A credential that will not open is the user's to repair, not an outage.
-    if (credentialToken) {
-      return failure(401, 'CREDENTIAL_INVALID', 'Brokerage access must be connected again.');
-    }
-    logUpstreamFailure('deleteSnapTradeUser + registerSnapTradeUser', error);
+    logUpstreamFailure('linkedUser', error);
     return failure(
       502,
       'UPSTREAM_ERROR',
@@ -146,32 +161,53 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { scope, sealed } = linked;
-  try {
-    const redirectUri = await openConnectionPortal(config, scope, {
+  let { scope, sealed } = linked;
+  let redirectUri: string;
+
+  const openPortal = (targetScope: SnapTradeScope) =>
+    openConnectionPortal(config, targetScope, {
       customRedirect: body.client === 'web' ? config.webRedirectUrl : config.mobileRedirectUrl,
       ...(body.reconnect ? { reconnect: body.reconnect } : {}),
     });
 
-    const response = NextResponse.json<SnapTradePortalSuccess>({
-      ok: true,
-      redirectUri,
-      // Mobile stores this in SecureStore; web receives it as a cookie below.
-      ...(body.client === 'mobile' && sealed ? { credential: sealed } : {}),
-    });
-    if (body.client === 'web' && sealed) persistWebCredential(response, sealed);
-    return response;
+  try {
+    redirectUri = await openPortal(scope);
   } catch (error) {
     logUpstreamFailure('loginSnapTradeUser', error);
-    // The registration above may have succeeded, and losing that secret would
-    // orphan the SnapTrade user it created. Hand it back either way.
-    const response = failure(
-      502,
-      'UPSTREAM_ERROR',
-      'SnapTrade could not open the portal. Try again.',
-      body.client === 'mobile' ? sealed : undefined,
-    );
-    if (body.client === 'web' && sealed) persistWebCredential(response, sealed);
-    return response;
+
+    // If opening the portal failed and we had reused an existing credential in commercial mode,
+    // that credential might be stale, expired, or orphaned on SnapTrade's side.
+    // Self-heal: register fresh once and retry opening the portal.
+    if (scope.mode === 'commercial' && credentialToken) {
+      try {
+        console.warn('[snaptrade] Stored credential failed portal login. Self-healing with fresh registration.');
+        const fresh = await registerFreshUser(config, subject);
+        scope = fresh.scope;
+        sealed = fresh.sealed;
+        redirectUri = await openPortal(scope);
+      } catch (recoveryError) {
+        logUpstreamFailure('recoverSnapTradeUser + openPortal', recoveryError);
+        return failure(
+          502,
+          'UPSTREAM_ERROR',
+          'SnapTrade could not open the portal. Try again.',
+        );
+      }
+    } else {
+      return failure(
+        502,
+        'UPSTREAM_ERROR',
+        'SnapTrade could not open the portal. Try again.',
+      );
+    }
   }
+
+  const response = NextResponse.json<SnapTradePortalSuccess>({
+    ok: true,
+    redirectUri,
+    // Mobile stores this in SecureStore; web receives it as a cookie below.
+    ...(body.client === 'mobile' && sealed ? { credential: sealed } : {}),
+  });
+  if (body.client === 'web' && sealed) persistWebCredential(response, sealed);
+  return response;
 }
